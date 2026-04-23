@@ -9,11 +9,30 @@ import { SettingsScreen } from "./components/SettingsScreen";
 import { LandingPage } from "./components/LandingPage";
 import { MatchesScreen } from "./components/MatchesScreen";
 import { InterviewsScreen } from "./components/InterviewsScreen";
+import { EmployerDashboard } from "./components/EmployerDashboard";
+import { AuthPage } from "./components/AuthPage";
+import { ChoosePathScreen } from "./components/ChoosePathScreen";
 
 export const router = createBrowserRouter([
   {
     path: "/",
     Component: LandingPage,
+  },
+  {
+    path: "/auth",
+    Component: AuthPage,
+  },
+  {
+    path: "/candidate/start",
+    Component: ChoosePathScreen,
+  },
+  {
+    path: "/candidate/start",
+    Component: ChoosePathScreen,
+  },
+  {
+    path: "/employer",
+    Component: EmployerDashboard,
   },
   {
     path: "/candidate",

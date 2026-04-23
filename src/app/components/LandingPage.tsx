@@ -3,8 +3,11 @@ import { motion } from 'motion/react';
 import { 
   ArrowRight, ShieldCheck, CheckCircle2,
   Play, Sparkles, Briefcase, Eye, Award, TrendingUp,
-  BarChart, Lock, UserCheck, Check
+  BarChart, Lock, UserCheck, Check, Clock, Mic, 
+  ChevronRight, ArrowDown, FileText, Search
 } from 'lucide-react';
+import { BlurText } from './ui/BlurText';
+import { AnimatedContent } from './ui/AnimatedContent';
 
 export function LandingPage() {
   const navigate = useNavigate();
@@ -90,39 +93,35 @@ export function LandingPage() {
             <a href="#trust" className="hover:text-[#1F2430] transition-colors">Trust</a>
           </div>
           <div className="flex items-center gap-4">
-            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => navigate('/candidate')} className="text-[14px] font-medium text-[#1F2430] hover:text-[#3E63F5] transition-colors hidden sm:block">Log In</motion.button>
-            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => navigate('/pre-interview')} className="px-5 py-2.5 rounded-xl bg-[#1F2430] text-white text-[14px] font-semibold hover:bg-[#2A3040] transition-colors shadow-sm flex items-center gap-2 group">
+            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => navigate('/auth')} className="text-[14px] font-medium text-[#1F2430] hover:text-[#3E63F5] transition-colors hidden sm:block">Log In</motion.button>
+            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => navigate('/auth')} className="px-5 py-2.5 rounded-xl bg-[#1F2430] text-white text-[14px] font-semibold hover:bg-[#2A3040] transition-colors shadow-sm flex items-center gap-2 group">
               Start Interview <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
             </motion.button>
           </div>
         </nav>
 
         {/* 2. Hero Section */}
-        <div className="flex flex-col items-center text-center max-w-4xl mx-auto mb-20 md:mb-28">
+        <div className="flex flex-col items-center text-center max-w-4xl mx-auto mb-20 md:mb-28 pt-4">
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-card border border-white/60 mb-8 shadow-sm"
           >
             <div className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" />
             <span className="text-[13px] font-bold text-[#1F2430] uppercase tracking-wider">The New Standard for Hiring</span>
           </motion.div>
           
-          <motion.h1 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="font-[Manrope,sans-serif] text-[40px] md:text-[72px] font-extrabold text-[#1F2430] tracking-tight leading-[1.1] mb-6"
-          >
-            Your skills should get you hired.<br className="hidden md:block" /> Not your resume.
-          </motion.h1>
+          <div className="font-[Manrope,sans-serif] text-[40px] md:text-[72px] font-extrabold text-[#1F2430] tracking-tight leading-[1.1] mb-6 flex flex-col items-center">
+            <BlurText text="Your skills should get you hired." delay={0.04} />
+            <BlurText text="Not your resume." delay={0.04} className="text-[#1F2430]/90" />
+          </div>
           
           <motion.p 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="text-lg md:text-[22px] text-[#1F2430]/70 font-medium mb-10 max-w-2xl leading-relaxed"
+            transition={{ duration: 0.8, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            className="text-lg md:text-[22px] text-[#1F2430]/70 font-medium mb-12 max-w-2xl leading-relaxed"
           >
             Take a conversational AI interview. Get a verified skill profile. Let companies discover you based on demonstrated ability.
           </motion.p>
@@ -130,30 +129,29 @@ export function LandingPage() {
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className="flex flex-col sm:flex-row items-center gap-4 w-full justify-center mb-6"
+            transition={{ duration: 0.8, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            className="flex flex-col items-center gap-5 w-full justify-center mb-6"
           >
-            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => navigate('/pre-interview')} className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-[#3E63F5] text-white text-[16px] font-bold hover:bg-[#2A44B0] transition-all shadow-[0_8px_24px_rgba(62,99,245,0.3)] hover:-translate-y-1 flex items-center justify-center gap-2 group">
+            <motion.button 
+              whileHover={{ scale: 1.02 }} 
+              whileTap={{ scale: 0.98 }} 
+              onClick={() => navigate('/auth')} 
+              className="w-full sm:w-auto px-10 py-4 rounded-2xl bg-[#3E63F5] text-white text-[16px] font-bold hover:bg-[#2A44B0] transition-all shadow-[0_8px_32px_rgba(62,99,245,0.3)] hover:-translate-y-1 flex items-center justify-center gap-2 group"
+            >
               Start Free Interview 
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </motion.button>
-            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full sm:w-auto px-8 py-4 rounded-2xl glass-card text-[#1F2430] text-[16px] font-bold hover:bg-white/80 transition-all shadow-sm">
-              I'm Hiring
-            </motion.button>
+            
+            <div className="flex items-center gap-4 text-[13.5px] font-bold text-[#1F2430]/60 bg-white/40 px-5 py-2.5 rounded-full border border-white/60 shadow-sm backdrop-blur-md">
+              <span className="flex items-center gap-1.5 text-[#1F2430]"><Clock className="w-4 h-4 text-[#10B981]" /> 35-40 min AI interview</span>
+              <span className="w-1 h-1 rounded-full bg-[#1F2430]/20" />
+              <span className="flex items-center gap-1.5"><ShieldCheck className="w-4 h-4 text-[#10B981]" /> No trick questions</span>
+            </div>
           </motion.div>
-          
-          <motion.p 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-            className="text-[13px] font-medium text-[#1F2430]/50 flex items-center justify-center gap-1.5"
-          >
-            <CheckCircle2 className="w-4 h-4 text-[#10B981]" /> Role-based interview. No trick questions. Takes ~30 mins.
-          </motion.p>
         </div>
 
         {/* 3. Hero Visual / Sample Profile */}
-        <div className="relative max-w-5xl mx-auto mb-24 md:mb-32 perspective-[1000px]">
+        <div className="relative max-w-6xl mx-auto mb-24 md:mb-32 perspective-[1000px]">
           <motion.div 
             animate={{ 
               scale: [1, 1.1, 1],
@@ -163,98 +161,118 @@ export function LandingPage() {
             transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
             className="absolute inset-0 bg-gradient-to-tr from-[#3E63F5] to-[#B392F0] rounded-[3rem] blur-[100px] pointer-events-none" 
           />
-          <div className="relative glass-card rounded-[2.5rem] p-6 md:p-12 shadow-[0_24px_64px_rgba(30,35,60,0.08)] transform-style-3d hover:-translate-y-2 transition-transform duration-700">
-            <div className="flex flex-col md:flex-row gap-8 md:gap-12 items-center">
+          <div className="relative glass-card rounded-[2.5rem] p-6 md:p-10 shadow-[0_24px_64px_rgba(30,35,60,0.08)] transform-style-3d hover:-translate-y-2 transition-transform duration-700">
+            <div className="flex flex-col lg:flex-row gap-6 md:gap-8 items-center justify-between">
               
-              {/* Interview Interaction */}
-              <div className="w-full md:w-5/12 flex flex-col gap-4 relative">
-                 <div className="absolute top-1/2 -right-8 w-16 h-1 border-b-2 border-dashed border-[#3E63F5]/30 hidden md:block">
-                    <motion.div 
-                      initial={{ left: 0, opacity: 0 }}
-                      animate={{ left: "100%", opacity: [0, 1, 0] }}
-                      transition={{ duration: 1, delay: 1.2, ease: "easeInOut" }}
-                      className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-white shadow-sm flex items-center justify-center border border-[#3E63F5]/20 z-10"
-                    >
-                      <Sparkles className="w-4 h-4 text-[#3E63F5]" />
-                    </motion.div>
-                 </div>
+              {/* Step 1: AI Interview */}
+              <AnimatedContent delay={0.4} direction="horizontal" reverse className="w-full lg:w-1/3">
+                <div className="bg-white rounded-3xl p-5 shadow-sm border border-black/5 relative hover:shadow-md transition-shadow">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-[#3E63F5] to-[#8C9EFF] flex items-center justify-center text-[10px] font-bold text-white shadow-inner">AI</div>
+                      <span className="text-[12px] font-bold text-[#1F2430]/50 uppercase tracking-wide">Live Interview</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#1F2430]/5 text-[#1F2430]/40 text-[11px] font-bold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> 14:22
+                    </div>
+                  </div>
+                  <p className="text-[14px] text-[#1F2430]/90 font-medium leading-relaxed mb-4">
+                    "Walk me through how you handled state management in that high-traffic e-commerce project."
+                  </p>
+                  <div className="p-3 rounded-2xl bg-[#F3F2F0] border border-black/5 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <Mic className="w-4 h-4 text-[#3E63F5]" />
+                    </div>
+                    <div className="flex-1 flex items-center gap-1 opacity-50">
+                      {[...Array(8)].map((_, i) => (
+                        <motion.div 
+                          key={i} 
+                          animate={{ height: [4, 12, 4] }} 
+                          transition={{ duration: 1, repeat: Infinity, delay: i * 0.1 }}
+                          className="w-1 rounded-full bg-[#3E63F5]" 
+                        />
+                      ))}
+                      <span className="text-[12px] font-medium text-[#1F2430]/60 ml-2">Speaking...</span>
+                    </div>
+                  </div>
+                </div>
+              </AnimatedContent>
 
-                 <motion.div 
-                   initial={{ opacity: 0, x: -20 }}
-                   animate={{ opacity: 1, x: 0 }}
-                   transition={{ duration: 0.5, delay: 0.5 }}
-                   className="p-5 rounded-3xl bg-white shadow-sm rounded-bl-none border border-black/5 animate-float-slow"
-                 >
-                   <div className="flex items-center gap-2 mb-2">
-                     <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-[#3E63F5] to-[#8C9EFF] flex items-center justify-center text-[10px] font-bold text-white">AI</div>
-                     <span className="text-[12px] font-bold text-[#1F2430]/40">System Architecture</span>
-                   </div>
-                   <p className="text-[14px] text-[#1F2430]/90 font-medium">"Walk me through how you handled state management in that high-traffic e-commerce project."</p>
-                 </motion.div>
-                 
-                 <motion.div 
-                   initial={{ opacity: 0, x: 20 }}
-                   animate={{ opacity: 1, x: 0 }}
-                   transition={{ duration: 0.5, delay: 0.7 }}
-                   className="p-5 rounded-3xl bg-[#3E63F5] shadow-sm rounded-br-none ml-8 relative"
-                 >
-                   <div className="flex items-center gap-2 mb-2 justify-end">
-                     <span className="text-[12px] font-bold text-white/60">Candidate</span>
-                     <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold text-white">You</div>
-                   </div>
-                   <p className="text-[14px] text-white font-medium">"We used Redux for the global cart state, but kept local UI state in React context to prevent unnecessary full-page re-renders..."</p>
-                 </motion.div>
-              </div>
+              <ChevronRight className="hidden lg:block w-8 h-8 text-[#1F2430]/20 flex-shrink-0" />
+              <ArrowDown className="lg:hidden w-6 h-6 text-[#1F2430]/20 flex-shrink-0 my-[-10px] z-10 bg-[#F3F2F0] rounded-full p-1 border border-white" />
 
-              {/* Verified Profile Output */}
-              <motion.div 
-                 initial={{ opacity: 0, scale: 0.95 }}
-                 animate={{ opacity: 1, scale: 1 }}
-                 transition={{ duration: 0.6, delay: 1.5, type: "spring", bounce: 0.4 }}
-                 className="w-full md:w-7/12 bg-white/70 backdrop-blur-xl rounded-[2rem] border border-white p-6 md:p-8 shadow-[0_16px_40px_rgba(30,35,60,0.06)] relative overflow-hidden"
-              >
-                 <div className="absolute -top-3 -right-3 px-3 py-1.5 rounded-xl bg-[#10B981] text-white text-[12px] font-bold flex items-center gap-1.5 shadow-[0_8px_16px_rgba(16,185,129,0.3)] z-10">
-                  <ShieldCheck className="w-3.5 h-3.5" /> Verified Profile
-                 </div>
-                 
-                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 mb-8">
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#1F2430] to-[#3E63F5] p-[2px] flex-shrink-0">
-                      <div className="w-full h-full rounded-[14px] bg-white border border-white flex items-center justify-center overflow-hidden">
-                        <UserCheck className="w-8 h-8 text-[#1F2430]/30" />
+              {/* Step 2: Verified Profile */}
+              <AnimatedContent delay={0.6} direction="vertical" className="w-full lg:w-1/3 relative z-10">
+                <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-5 shadow-[0_16px_40px_rgba(30,35,60,0.06)] border border-white scale-105">
+                  <div className="absolute -top-3 -right-3 px-3 py-1.5 rounded-xl bg-[#10B981] text-white text-[11px] font-bold flex items-center gap-1.5 shadow-[0_8px_16px_rgba(16,185,129,0.3)] z-10">
+                    <ShieldCheck className="w-3.5 h-3.5" /> High Signal
+                  </div>
+                  <div className="flex items-start gap-4 mb-5">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#1F2430] to-[#3E63F5] p-[2px] flex-shrink-0">
+                      <div className="w-full h-full rounded-[14px] bg-white flex items-center justify-center">
+                        <UserCheck className="w-5 h-5 text-[#1F2430]/40" />
                       </div>
                     </div>
                     <div>
-                      <h3 className="font-[Manrope,sans-serif] text-[22px] font-bold text-[#1F2430] leading-tight">Senior Frontend Engineer</h3>
-                      <p className="text-[14px] text-[#1F2430]/60 font-medium">Top 5% Match for Architecture & State Management</p>
+                      <h3 className="font-[Manrope,sans-serif] text-[16px] font-bold text-[#1F2430] leading-tight mb-1">Anonymous Profile</h3>
+                      <p className="text-[12px] text-[#1F2430]/60 font-medium">Senior Frontend Engineer</p>
                     </div>
-                 </div>
-                 
-                 <div className="space-y-4">
-                   <div className="p-5 rounded-2xl bg-[#F3F2F0]/80 border border-white">
-                     <p className="text-[12px] font-bold text-[#1F2430]/50 uppercase tracking-wider mb-3">Verified Strengths</p>
-                     <div className="flex flex-wrap gap-2.5">
-                       {['React Performance', 'System Architecture', 'API Integration'].map(s => (
-                         <span key={s} className="px-3 py-1.5 rounded-lg bg-white text-[#3E63F5] text-[13px] font-bold border border-[#3E63F5]/10 shadow-sm flex items-center gap-1.5">
-                           <Check className="w-3.5 h-3.5 text-[#10B981]" /> {s}
-                         </span>
-                       ))}
-                     </div>
-                   </div>
-                   
-                   <div className="flex items-center justify-between p-4 rounded-2xl bg-white/50 border border-white shadow-sm">
-                     <div className="flex items-center gap-3">
-                       <div className="w-10 h-10 rounded-full bg-[#10B981]/10 flex items-center justify-center">
-                         <Play className="w-4 h-4 text-[#10B981] ml-0.5" />
-                       </div>
-                       <div>
-                         <p className="text-[14px] font-bold text-[#1F2430]">Evidence Clip</p>
-                         <p className="text-[12px] text-[#1F2430]/50">State Management Answer</p>
-                       </div>
-                     </div>
-                     <span className="text-[12px] font-bold text-[#1F2430]/40">1:45</span>
-                   </div>
-                 </div>
-              </motion.div>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#10B981]/10 border border-[#10B981]/20">
+                      <span className="text-[12px] font-bold text-[#10B981] flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5" /> Trust Score</span>
+                      <span className="text-[13px] font-bold text-[#1F2430]">94%</span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-[#F3F2F0]/80 border border-white">
+                      <p className="text-[11px] font-bold text-[#1F2430]/50 uppercase tracking-wider mb-2">Verified Capabilities</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {['State Management', 'React Arch.', 'API Design'].map(s => (
+                          <span key={s} className="px-2 py-1 rounded-md bg-white text-[#3E63F5] text-[11px] font-bold border border-[#3E63F5]/10 shadow-sm">
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </AnimatedContent>
+
+              <ChevronRight className="hidden lg:block w-8 h-8 text-[#1F2430]/20 flex-shrink-0" />
+              <ArrowDown className="lg:hidden w-6 h-6 text-[#1F2430]/20 flex-shrink-0 my-[-10px] z-10 bg-[#F3F2F0] rounded-full p-1 border border-white" />
+
+              {/* Step 3: Employer Discovery */}
+              <AnimatedContent delay={0.8} direction="horizontal" className="w-full lg:w-1/3">
+                <div className="bg-[#1F2430] rounded-3xl p-5 shadow-lg border border-white/10 text-white relative hover:shadow-xl transition-shadow">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-white"><Search className="w-3 h-3" /></div>
+                      <span className="text-[12px] font-bold text-white/50 uppercase tracking-wide">Employer Dashboard</span>
+                    </div>
+                    <span className="px-2 py-1 rounded-md bg-[#10B981]/20 text-[#10B981] text-[10px] font-bold border border-[#10B981]/30">New Match</span>
+                  </div>
+                  
+                  <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 mb-3 hover:bg-white/10 transition-colors cursor-pointer group">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[13px] font-bold text-white">98% Role Fit</span>
+                      <ChevronRight className="w-4 h-4 text-white/30 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                    <p className="text-[12px] text-white/60 mb-3 leading-relaxed">
+                      Matches your exact requirements for complex React state architecture.
+                    </p>
+                    
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/10 border border-white/5 group-hover:bg-white/20 transition-colors">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-6 h-6 rounded-full bg-[#10B981] flex items-center justify-center shadow-[0_0_12px_rgba(16,185,129,0.4)]">
+                          <Play className="w-2.5 h-2.5 text-white ml-0.5" />
+                        </div>
+                        <span className="text-[11px] font-bold text-white">Play Evidence Clip</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-white/40">1:45</span>
+                    </div>
+                  </div>
+                </div>
+              </AnimatedContent>
+
             </div>
           </div>
         </div>
@@ -293,9 +311,27 @@ export function LandingPage() {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
             {[
-              { num: "01", title: "Choose Role & Start", desc: "Select your target position and begin a conversational AI interview that adapts to your experience." },
-              { num: "02", title: "Get a Verified Profile", desc: "Our system turns your answers into a high-signal profile highlighting your actual strengths and skills." },
-              { num: "03", title: "Companies Find You", desc: "Hirers searching for your exact skill profile will send you interview requests and offers directly." }
+              { 
+                num: "01", 
+                title: "Choose Path", 
+                desc: "Select your target role and configure your baseline experience level. No resume upload required.",
+                time: "Takes 2 mins",
+                icon: <Briefcase className="w-6 h-6 text-[#3E63F5]" />
+              },
+              { 
+                num: "02", 
+                title: "Take Interview", 
+                desc: "Complete an adaptive AI interview. Focuses on real architecture and problem-solving instead of leetcode.",
+                time: "35-40 mins",
+                icon: <Mic className="w-6 h-6 text-[#3E63F5]" />
+              },
+              { 
+                num: "03", 
+                title: "Publish Verified Profile", 
+                desc: "Review your generated high-signal profile, set your visibility to anonymous, and let matching employers request to meet you.",
+                time: "Instant",
+                icon: <ShieldCheck className="w-6 h-6 text-[#3E63F5]" />
+              }
             ].map((step, i) => (
               <motion.div 
                 key={i} 
@@ -303,16 +339,24 @@ export function LandingPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-50px" }}
                 transition={{ duration: 0.5, delay: i * 0.15 }}
-                className="glass-card rounded-[2rem] p-8 lg:p-10 relative overflow-hidden group hover:bg-white/60 transition-colors"
+                className="glass-card rounded-[2rem] p-8 lg:p-10 relative overflow-hidden group hover:bg-white/60 transition-colors flex flex-col h-full"
               >
-                <div className="absolute -right-4 -top-4 text-[120px] font-bold text-[#1F2430]/[0.03] font-[Manrope,sans-serif] leading-none pointer-events-none group-hover:scale-110 transition-transform duration-500">
-                  {step.num}
+                <div className="flex items-center justify-between mb-8">
+                  <div className="w-14 h-14 rounded-2xl bg-[#3E63F5]/10 flex items-center justify-center border border-[#3E63F5]/20 shadow-inner group-hover:scale-105 transition-transform duration-300">
+                    {step.icon}
+                  </div>
+                  <span className="font-[Manrope,sans-serif] font-extrabold text-2xl text-[#1F2430]/10 group-hover:text-[#1F2430]/20 transition-colors">
+                    {step.num}
+                  </span>
                 </div>
-                <div className="w-12 h-12 rounded-xl bg-[#3E63F5]/10 text-[#3E63F5] flex items-center justify-center font-[Manrope,sans-serif] font-bold text-xl mb-6 border border-[#3E63F5]/20 shadow-inner">
-                  {step.num}
+                
+                <h3 className="font-[Manrope,sans-serif] text-[20px] font-bold text-[#1F2430] mb-3">{step.title}</h3>
+                <p className="text-[15px] text-[#1F2430]/70 leading-relaxed font-medium flex-1">{step.desc}</p>
+                
+                <div className="mt-8 pt-6 border-t border-[#1F2430]/5 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-[#10B981]" />
+                  <span className="text-[13px] font-bold text-[#1F2430]/60">{step.time}</span>
                 </div>
-                <h3 className="font-[Manrope,sans-serif] text-xl font-bold text-[#1F2430] mb-3">{step.title}</h3>
-                <p className="text-[15px] text-[#1F2430]/70 leading-relaxed font-medium">{step.desc}</p>
               </motion.div>
             ))}
           </div>
