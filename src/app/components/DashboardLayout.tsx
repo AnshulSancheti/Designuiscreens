@@ -18,6 +18,7 @@ const dockItems = [
 ];
 
 export function DashboardLayout() {
+  // HMR trigger
   const navigate = useNavigate();
   const [isAvailable, setIsAvailable] = useState(true);
 

@@ -45,45 +45,44 @@ export function InterviewRoom() {
 
         {/* Header - Integrated into the shell */}
         <header className="flex items-center justify-between px-6 py-4 shrink-0 mb-2 relative z-20">
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4 sm:gap-6">
             <div className="font-[Manrope,sans-serif] font-bold text-2xl tracking-tight text-[#1F2430]">
               Placed<span className="text-[#3E63F5]">On</span>
             </div>
-            <div className="w-[1px] h-6 bg-[#1F2430]/[0.08]" />
-            <div className="flex flex-col">
-              <span className="text-sm font-semibold text-[#1F2430]">Product Manager</span>
-              <span className="text-xs font-medium text-[#1F2430]/60">Round 1: Technical & Behavioral</span>
+            <div className="hidden sm:block w-[1px] h-6 bg-[#1F2430]/[0.08]" />
+            <div className="hidden sm:flex flex-col">
+              <span className="text-sm font-semibold text-[#1F2430]">Frontend Engineer</span>
+              <span className="text-xs font-medium text-[#1F2430]/60">Question 2 of 5</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-3 sm:gap-5">
             {/* Dimensional AI State Pill */}
             <button 
               onClick={() => setAiState(s => s === "listening" ? "thinking" : s === "thinking" ? "speaking" : "listening")}
-              className="group flex items-center gap-3 px-5 py-2.5 rounded-full transition-all duration-500 ease-out hover:scale-[1.02] shadow-[0_4px_12px_rgba(30,35,60,0.06),inset_0_1px_1px_rgba(255,255,255,0.9)] ring-1 ring-[#1F2430]/[0.03]"
+              className="group flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2.5 rounded-full transition-all duration-500 ease-out hover:scale-[1.02] shadow-[0_4px_12px_rgba(30,35,60,0.06),inset_0_1px_1px_rgba(255,255,255,0.9)] ring-1 ring-[#1F2430]/[0.03]"
               style={{
                 backgroundColor: aiState === "speaking" ? "rgba(243,244,251,0.85)" : aiState === "thinking" ? "rgba(248,237,235,0.85)" : "rgba(255,255,255,0.85)",
                 backdropFilter: "blur(16px)"
               }}
             >
               <AIIndicator state={aiState} />
-              <span className="text-sm font-semibold transition-colors duration-500" style={{
+              <span className="text-xs sm:text-sm font-semibold transition-colors duration-500 hidden md:block" style={{
                 color: aiState === "speaking" ? "#3E63F5" : aiState === "thinking" ? "#D97B94" : "#1F2430"
               }}>
                 {aiState === "listening" ? "AI is listening" : aiState === "thinking" ? "AI is thinking" : "AI is speaking"}
               </span>
             </button>
 
-            <div className="w-[1px] h-6 bg-[#1F2430]/[0.08]" />
+            <div className="hidden sm:block w-[1px] h-6 bg-[#1F2430]/[0.08]" />
 
             <div className="flex items-center gap-4 text-sm font-semibold text-[#1F2430]/60">
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/80 backdrop-blur-md shadow-[0_4px_12px_rgba(30,35,60,0.06),inset_0_1px_1px_rgba(255,255,255,0.9)] ring-1 ring-[#1F2430]/[0.03]">
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
-                <span className="text-[#1F2430] font-medium tracking-wide w-12 tabular-nums">14:23</span>
+              <div className="flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-white/80 backdrop-blur-md shadow-[0_4px_12px_rgba(30,35,60,0.06),inset_0_1px_1px_rgba(255,255,255,0.9)] ring-1 ring-[#1F2430]/[0.03]">
+                <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                <span className="text-[#1F2430] font-medium tracking-wide tabular-nums text-xs sm:text-sm">24:10 min left</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="hidden md:flex items-center gap-2">
                 <Wifi className="w-4 h-4 text-[#3E63F5]" />
-                <span>Excellent</span>
               </div>
             </div>
           </div>
@@ -142,13 +141,6 @@ export function InterviewRoom() {
                     className="absolute inset-0 flex flex-col items-center justify-center p-12 md:p-24"
                   >
                     <div className="max-w-4xl w-full flex flex-col items-center text-center space-y-10">
-                      {/* Question Accents */}
-                      <div className="flex items-center gap-3 text-[#3E63F5] font-semibold tracking-wider text-[13px] uppercase">
-                        <div className="w-8 h-[2px] bg-[#3E63F5]/30 rounded-full shadow-[0_1px_2px_rgba(62,99,245,0.2)]" />
-                        Current Question
-                        <div className="w-8 h-[2px] bg-[#3E63F5]/30 rounded-full shadow-[0_1px_2px_rgba(62,99,245,0.2)]" />
-                      </div>
-
                       <h1 className="font-[Manrope,sans-serif] text-4xl md:text-5xl lg:text-[52px] leading-[1.25] font-semibold text-[#1F2430] tracking-tight text-balance drop-shadow-[0_2px_4px_rgba(255,255,255,0.8)]">
                         “Walk me through how you’d approach finding why orders are reaching the wrong address.”
                       </h1>
@@ -303,20 +295,6 @@ export function InterviewRoom() {
                 </button>
                 
                 <div className="w-[1px] h-6 md:h-8 bg-[#1F2430]/[0.08] mx-0.5 md:mx-1" />
-                
-                <button className="p-2.5 md:p-3 rounded-full text-[#1F2430]/60 hover:text-[#1F2430] hover:bg-white/80 transition-all duration-300 relative group shadow-none hover:shadow-[0_2px_8px_rgba(30,35,60,0.04)] shrink-0">
-                  <Pause className="w-4 h-4 md:w-5 md:h-5" />
-                  <span className="absolute -top-12 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-[#1F2430] text-white text-xs font-semibold rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-[0_8px_16px_rgba(30,35,60,0.12)]">
-                    Pause interview
-                  </span>
-                </button>
-                
-                <button className="p-2.5 md:p-3 rounded-full text-[#1F2430]/60 hover:text-[#1F2430] hover:bg-white/80 transition-all duration-300 relative group shadow-none hover:shadow-[0_2px_8px_rgba(30,35,60,0.04)] shrink-0">
-                  <Keyboard className="w-4 h-4 md:w-5 md:h-5" />
-                  <span className="absolute -top-12 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-[#1F2430] text-white text-xs font-semibold rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-[0_8px_16px_rgba(30,35,60,0.12)]">
-                    Switch to text
-                  </span>
-                </button>
 
                 <button className="p-2.5 md:p-3 rounded-full text-[#1F2430]/60 hover:text-[#1F2430] hover:bg-white/80 transition-all duration-300 relative group shadow-none hover:shadow-[0_2px_8px_rgba(30,35,60,0.04)] shrink-0">
                   <FileText className="w-4 h-4 md:w-5 md:h-5" />
@@ -378,19 +356,6 @@ export function InterviewRoom() {
               <button className="w-10 h-10 rounded-full flex items-center justify-center bg-white/70 text-[#1F2430]/60 hover:text-[#1F2430] hover:bg-white transition-all shadow-[0_4px_12px_rgba(30,35,60,0.06),inset_0_1px_1px_rgba(255,255,255,0.9)] ring-1 ring-[#1F2430]/[0.03] backdrop-blur-md">
                 <MoreHorizontal className="w-5 h-5" />
               </button>
-            </div>
-
-            {/* Active Objective Context Card */}
-            <div className="px-7 shrink-0 z-20 mb-2">
-              <div className="p-4 rounded-[1.25rem] bg-white/70 shadow-[0_4px_12px_rgba(30,35,60,0.04),inset_0_1px_1px_rgba(255,255,255,0.9)] ring-1 ring-[#1F2430]/[0.03] backdrop-blur-xl relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-1 h-full bg-[#3E63F5] rounded-l-[1.25rem] opacity-80" />
-                <div className="flex items-center gap-2 mb-2 text-[#3E63F5] text-[10px] font-bold uppercase tracking-wider pl-2">
-                  <Target className="w-3.5 h-3.5" /> Current Objective
-                </div>
-                <p className="text-[14px] text-[#1F2430]/80 font-medium leading-[1.6] pl-2">
-                  {activeMode === 'conversation' ? "Discuss address validation edge cases." : activeMode === 'whiteboard' ? "Diagram the order tracking data flow and address edge cases." : "Write a function to handle incoming address object validation."}
-                </p>
-              </div>
             </div>
 
             {/* Transcript Divider */}

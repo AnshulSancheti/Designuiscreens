@@ -5,6 +5,7 @@ import { DashboardLayout } from "./components/DashboardLayout";
 import { UserDashboard } from "./components/UserDashboard";
 import { ApplicationsScreen } from "./components/ApplicationsScreen";
 import { ProfileScreen } from "./components/ProfileScreen";
+import { ProfileGenerationScreen } from "./components/ProfileGenerationScreen";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { LandingPage } from "./components/LandingPage";
 import { MatchesScreen } from "./components/MatchesScreen";
@@ -12,6 +13,8 @@ import { InterviewsScreen } from "./components/InterviewsScreen";
 import { EmployerDashboard } from "./components/EmployerDashboard";
 import { AuthPage } from "./components/AuthPage";
 import { ChoosePathScreen } from "./components/ChoosePathScreen";
+import { EmployerInterestScreen } from "./components/EmployerInterestScreen";
+import { FollowUpChallengeScreen } from "./components/FollowUpChallengeScreen";
 
 export const router = createBrowserRouter([
   {
@@ -21,10 +24,6 @@ export const router = createBrowserRouter([
   {
     path: "/auth",
     Component: AuthPage,
-  },
-  {
-    path: "/candidate/start",
-    Component: ChoosePathScreen,
   },
   {
     path: "/candidate/start",
@@ -59,8 +58,20 @@ export const router = createBrowserRouter([
         Component: ProfileScreen,
       },
       {
+        path: "generating",
+        Component: ProfileGenerationScreen,
+      },
+      {
         path: "settings",
         Component: SettingsScreen,
+      },
+      {
+        path: "interest",
+        Component: EmployerInterestScreen,
+      },
+      {
+        path: "challenge",
+        Component: FollowUpChallengeScreen,
       },
     ],
   },
