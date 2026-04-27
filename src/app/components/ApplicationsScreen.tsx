@@ -1,26 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   FileCheck, Eye, Heart, Target, Users, Trophy, Archive, 
-  ArrowRight, Clock, MapPin, Building2, PlayCircle, Star
+  ArrowRight, Clock, MapPin, Building2, PlayCircle, Star, AlertCircle
 } from "lucide-react";
 import { useNavigate } from "react-router";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { AnimatedContent } from "./ui/AnimatedContent";
+import { demoApi, Application as APIApplication } from "../lib/demoApi";
 
 type ApplicationStage = 'applied' | 'reviewing' | 'interest' | 'follow-up' | 'interviewing' | 'offer' | 'closed';
-
-interface Application {
-  id: string;
-  company: string;
-  role: string;
-  stage: ApplicationStage;
-  logo: string;
-  date: string;
-  action?: { label: string; path: string; type: 'primary' | 'secondary' | 'alert' };
-  salary?: string;
-  match?: string;
-}
 
 const STAGES: { id: ApplicationStage; label: string; icon: any; color: string; bgColor: string }[] = [
   { id: 'applied', label: 'Applied', icon: <FileCheck className="w-4 h-4" />, color: 'text-[#1F2430]/60', bgColor: 'bg-white/40' },
@@ -32,75 +21,61 @@ const STAGES: { id: ApplicationStage; label: string; icon: any; color: string; b
   { id: 'closed', label: 'Closed', icon: <Archive className="w-4 h-4" />, color: 'text-[#1F2430]/40', bgColor: 'bg-[#1F2430]/5' },
 ];
 
-const INITIAL_APPS: Application[] = [
-  {
-    id: "app1",
-    company: "Linear",
-    role: "Staff Engineer, DX",
-    stage: "interest",
-    logo: "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=200&h=200&fit=crop",
-    date: "Expires in 7 days",
-    match: "Strong Match",
-    action: { label: "Review Request", path: "/candidate/interest", type: "primary" },
-  },
-  {
-    id: "app2",
-    company: "Stripe",
-    role: "Backend Engineer",
-    stage: "follow-up",
-    logo: "https://images.unsplash.com/photo-1614680376573-df3480f0c6ff?w=200&h=200&fit=crop",
-    date: "Due in 3 days",
-    action: { label: "View Challenge", path: "/candidate/challenge", type: "alert" },
-  },
-  {
-    id: "app3",
-    company: "Anthropic",
-    role: "AI Integration Lead",
-    stage: "reviewing",
-    logo: "https://images.unsplash.com/photo-1620288627223-53302f4e8c74?w=200&h=200&fit=crop",
-    date: "Updated 2d ago",
-    match: "Great Match"
-  },
-  {
-    id: "app4",
-    company: "Discord",
-    role: "Frontend Engineer",
-    stage: "applied",
-    logo: "https://images.unsplash.com/photo-1614680376408-81e91ffe3db7?w=200&h=200&fit=crop",
-    date: "Applied 4d ago"
-  },
-  {
-    id: "app5",
-    company: "OpenAI",
-    role: "Frontend AI",
-    stage: "interviewing",
-    logo: "https://images.unsplash.com/photo-1620288627223-53302f4e8c74?w=200&h=200&fit=crop",
-    date: "Today, 2:00 PM",
-    action: { label: "Join Room", path: "/pre-interview", type: "secondary" }
-  },
-  {
-    id: "app6",
-    company: "Vercel",
-    role: "Senior UX Engineer",
-    stage: "offer",
-    logo: "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=200&h=200&fit=crop",
-    date: "Sent yesterday",
-    salary: "$190k - $220k",
-    action: { label: "View Offer Details", path: "#", type: "primary" }
-  },
-  {
-    id: "app7",
-    company: "Meta",
-    role: "UI Engineer",
-    stage: "closed",
-    logo: "https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?w=200&h=200&fit=crop",
-    date: "Closed"
-  }
-];
-
 export function ApplicationsScreen() {
   const navigate = useNavigate();
-  const [apps] = useState<Application[]>(INITIAL_APPS);
+  const [apps, setApps] = useState<APIApplication[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadApplications() {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await demoApi.getApplications();
+        setApps(data.applications);
+      } catch (err) {
+        console.error('Failed to load applications:', err);
+        setError('Unable to load applications data. Please check your connection.');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadApplications();
+  }, []);
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="flex flex-col h-full min-h-[calc(100vh-140px)]">
+        <div className="rounded-[2.5rem] glass-card p-8 h-64 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-12 h-12 border-4 border-[#3E63F5]/20 border-t-[#3E63F5] rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-[14px] font-medium text-[#1F2430]/60">Loading applications...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="flex flex-col h-full min-h-[calc(100vh-140px)]">
+        <div className="rounded-[2.5rem] glass-card p-8 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-[#F59E0B]/10 flex items-center justify-center text-[#F59E0B]">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="font-[Manrope,sans-serif] text-[18px] font-bold text-[#1F2430] mb-1">
+              Demo Data Unavailable
+            </h3>
+            <p className="text-[14px] text-[#1F2430]/60">{error}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full min-h-[calc(100vh-140px)] animate-[pulse-glow_0.5s_ease-out]">
@@ -124,7 +99,7 @@ export function ApplicationsScreen() {
 
         <div className="flex gap-6 min-w-max px-2 relative z-10">
           {STAGES.map((stage, index) => {
-            const stageApps = apps.filter(app => app.stage === stage.id);
+            const stageApps = apps.filter(app => app.stage.toLowerCase() === stage.id);
             
             return (
               <AnimatedContent 
@@ -170,14 +145,18 @@ export function ApplicationsScreen() {
                           className="glass-card rounded-[1.5rem] p-5 border border-white/80 shadow-[0_4px_16px_rgba(30,35,60,0.03)] hover:shadow-[0_12px_32px_rgba(30,35,60,0.06)] hover:-translate-y-1 transition-all duration-300 group cursor-default relative overflow-hidden"
                         >
                           {/* Accent Gradient based on Stage */}
-                          {app.stage === 'interest' && <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#EC4899] to-[#F472B6]" />}
-                          {app.stage === 'follow-up' && <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#F59E0B] to-[#FBBF24]" />}
-                          {app.stage === 'offer' && <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#10B981] to-[#34D399]" />}
-                          {app.stage === 'interviewing' && <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#8B5CF6] to-[#A78BFA]" />}
+                          {app.stage.toLowerCase() === 'interest' && <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#EC4899] to-[#F472B6]" />}
+                          {app.stage.toLowerCase() === 'follow-up' && <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#F59E0B] to-[#FBBF24]" />}
+                          {app.stage.toLowerCase() === 'offer' && <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#10B981] to-[#34D399]" />}
+                          {app.stage.toLowerCase() === 'interviewing' && <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#8B5CF6] to-[#A78BFA]" />}
 
                           <div className="flex items-start gap-4 mb-4">
                             <div className="w-12 h-12 rounded-[1rem] bg-white border border-[#1F2430]/10 shadow-sm flex items-center justify-center overflow-hidden shrink-0">
-                              <ImageWithFallback src={app.logo} alt={app.company} className="w-8 h-8 object-cover rounded-full" />
+                              {app.company_logo ? (
+                                <ImageWithFallback src={app.company_logo} alt={app.company} className="w-8 h-8 object-cover rounded-full" />
+                              ) : (
+                                <Building2 className="w-6 h-6 text-[#1F2430]/30" />
+                              )}
                             </div>
                             <div className="flex-1">
                               <h4 className="font-bold text-[#1F2430] text-[16px] leading-tight">{app.company}</h4>
@@ -188,37 +167,21 @@ export function ApplicationsScreen() {
                           {/* Meta Information Tags */}
                           <div className="flex flex-wrap items-center gap-2 mb-4">
                             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/60 border border-[#1F2430]/5 text-[11px] font-bold text-[#1F2430]/70">
-                              <Clock className="w-3 h-3 text-[#1F2430]/40" /> {app.date}
+                              <Clock className="w-3 h-3 text-[#1F2430]/40" /> {app.last_updated}
                             </div>
-                            {app.match && (
+                            {app.evidence_used && app.evidence_used.length > 0 && (
                               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#10B981]/10 border border-[#10B981]/20 text-[11px] font-bold text-[#10B981]">
-                                <Star className="w-3 h-3" /> {app.match}
-                              </div>
-                            )}
-                            {app.salary && (
-                              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#3E63F5]/10 border border-[#3E63F5]/20 text-[11px] font-bold text-[#3E63F5]">
-                                {app.salary}
+                                <Star className="w-3 h-3" /> {app.evidence_used.length} skills matched
                               </div>
                             )}
                           </div>
 
-                          {/* Action Button */}
-                          {app.action && (
+                          {/* Next Step Info */}
+                          {app.next_step && (
                             <div className="pt-4 border-t border-[#1F2430]/10">
-                              <button 
-                                onClick={() => navigate(app.action!.path)}
-                                className={`w-full py-2.5 rounded-xl font-bold text-[13px] transition-all flex items-center justify-center gap-2 ${
-                                  app.action.type === 'primary' 
-                                    ? 'bg-[#1F2430] text-white hover:bg-[#2A3040] shadow-md' 
-                                    : app.action.type === 'alert'
-                                    ? 'bg-[#F59E0B] text-white hover:bg-[#D97706] shadow-md shadow-[#F59E0B]/20'
-                                    : 'bg-white text-[#1F2430] border border-[#1F2430]/10 hover:bg-[#1F2430]/5 shadow-sm'
-                                }`}
-                              >
-                                {app.action.type === 'secondary' && <PlayCircle className="w-4 h-4" />}
-                                {app.action.label}
-                                {app.action.type !== 'secondary' && <ArrowRight className="w-4 h-4 opacity-70" />}
-                              </button>
+                              <p className="text-[12px] text-[#1F2430]/60 font-medium">
+                                <strong className="text-[#1F2430]">Next:</strong> {app.next_step}
+                              </p>
                             </div>
                           )}
                         </motion.div>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router";
 import { Bell, Shield, Home, Briefcase, User, Settings, CheckCircle, Zap, Crosshair, Calendar, FileText, AlignRight, Search, Activity, ChevronDown, Check } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -7,6 +7,7 @@ import { Orb } from "./ui/Orb";
 import { AnimatedContent } from "./ui/AnimatedContent";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import Dock from "./Dock";
+import { demoApi, CandidateIdentity } from "../lib/demoApi";
 
 const dockItems = [
   { icon: <Home size={20} strokeWidth={2.5} />, label: "Home", path: "/candidate" },
@@ -21,6 +22,23 @@ export function DashboardLayout() {
   // HMR trigger
   const navigate = useNavigate();
   const [isAvailable, setIsAvailable] = useState(true);
+  const [candidate, setCandidate] = useState<CandidateIdentity | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadCandidate() {
+      try {
+        setIsLoading(true);
+        const data = await demoApi.getCandidate();
+        setCandidate(data);
+      } catch (error) {
+        console.error('Failed to load candidate data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadCandidate();
+  }, []);
 
   const dockNavItems = dockItems.map((item) => ({
     icon: item.icon,
@@ -85,14 +103,14 @@ export function DashboardLayout() {
               <div>
                 <div className="flex items-center gap-2 mb-1.5">
                   <h1 className="font-[Manrope,sans-serif] text-xl md:text-2xl font-bold text-[#1F2430] leading-none">
-                    Alex Chen
+                    {isLoading ? "Loading..." : candidate?.name || "Aisha Sharma"}
                   </h1>
                   <span className="px-2 py-0.5 rounded-md bg-[#10B981]/10 text-[#10B981] text-[11px] font-bold uppercase tracking-wider border border-[#10B981]/20 flex items-center gap-1">
                     <Shield className="w-3 h-3" /> Verified
                   </span>
                 </div>
                 <p className="text-[14px] font-medium text-[#1F2430]/60 flex items-center gap-1.5">
-                  Senior Frontend Engineer
+                  {isLoading ? "..." : candidate?.target_role || "Frontend Engineer"}
                 </p>
               </div>
             </div>

@@ -1,94 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   MapPin, Building2, Bookmark, BookmarkCheck, TrendingUp, Clock, 
   ChevronRight, Zap, ShieldCheck, Target, ArrowRight, Share, Bell, 
-  Sparkles, CheckCircle2, FileText, Send, Search
+  Sparkles, CheckCircle2, FileText, Send, Search, AlertCircle
 } from "lucide-react";
 import { AnimatedContent } from "./ui/AnimatedContent";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
+import { demoApi, Match as APIMatch, MatchesResponse } from "../lib/demoApi";
+import { toast } from "sonner";
 
 type MatchLevel = "Strong Match" | "Good Match" | "Possible Match";
-type ActionType = "apply" | "express_interest";
-
-interface Match {
-  id: number;
-  company: string;
-  logo: string;
-  role: string;
-  location: string;
-  matchLevel: MatchLevel;
-  salary: string;
-  tags: string[];
-  matchedAt: string;
-  saved: boolean;
-  matchReason: string;
-  verifiedSkill: string;
-  actionType: ActionType;
-}
-
-const matches: Match[] = [
-  {
-    id: 1,
-    company: "Stripe",
-    logo: "https://logo.clearbit.com/stripe.com",
-    role: "Senior Frontend Engineer",
-    location: "San Francisco, CA · Remote",
-    matchLevel: "Strong Match",
-    salary: "$180k – $240k",
-    tags: ["React", "TypeScript", "Design Systems"],
-    matchedAt: "2 hours ago",
-    saved: false,
-    matchReason: "Stripe is looking for rigorous UI component architecture. Your deep expertise in React state management and design systems is an exact fit for their core checkout team.",
-    verifiedSkill: "React Architecture",
-    actionType: "apply"
-  },
-  {
-    id: 2,
-    company: "Vercel",
-    logo: "https://logo.clearbit.com/vercel.com",
-    role: "Staff Engineer, DX",
-    location: "Remote",
-    matchLevel: "Strong Match",
-    salary: "$200k – $260k",
-    tags: ["Next.js", "Performance", "Open Source"],
-    matchedAt: "5 hours ago",
-    saved: true,
-    matchReason: "Your strong performance profiling skills and Next.js background perfectly align with Vercel's mission to improve developer experience metrics.",
-    verifiedSkill: "Web Performance",
-    actionType: "apply"
-  },
-  {
-    id: 3,
-    company: "Linear",
-    logo: "https://logo.clearbit.com/linear.app",
-    role: "Product Engineer",
-    location: "Remote",
-    matchLevel: "Good Match",
-    salary: "$160k – $210k",
-    tags: ["React", "WebGL", "Animation"],
-    matchedAt: "1 day ago",
-    saved: false,
-    matchReason: "Linear values high-craft product engineering. While your WebGL is foundational, your proven track record of shipping polished React features makes you a highly viable candidate.",
-    verifiedSkill: "UI Polishing",
-    actionType: "express_interest"
-  },
-  {
-    id: 4,
-    company: "Figma",
-    logo: "https://logo.clearbit.com/figma.com",
-    role: "Senior Product Engineer",
-    location: "San Francisco, CA · Hybrid",
-    matchLevel: "Possible Match",
-    salary: "$190k – $250k",
-    tags: ["Canvas", "WebAssembly", "TypeScript"],
-    matchedAt: "1 day ago",
-    saved: false,
-    matchReason: "Figma needs deep TypeScript and Canvas knowledge. Your TypeScript is elite, though you may need to ramp up on specific Canvas APIs for this particular team.",
-    verifiedSkill: "Advanced TypeScript",
-    actionType: "express_interest"
-  }
-];
 
 function MatchBadge({ level }: { level: MatchLevel }) {
   const getStyles = () => {
@@ -199,19 +121,83 @@ function ZeroMatchState() {
 }
 
 export function MatchesScreen() {
-  // Toggle this to preview the zero-match state
-  const [showZeroState, setShowZeroState] = useState(false);
-  const [savedIds, setSavedIds] = useState<Set<number>>(
-    new Set(matches.filter((m) => m.saved).map((m) => m.id))
-  );
+  const [matches, setMatches] = useState<APIMatch[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [appliedIds, setAppliedIds] = useState<Set<string>>(new Set());
+  const [interestedIds, setInterestedIds] = useState<Set<string>>(new Set());
 
-  const toggleSave = (id: number) => {
+  useEffect(() => {
+    async function loadMatches() {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await demoApi.getMatches();
+        setMatches(data.matches);
+      } catch (err) {
+        console.error('Failed to load matches:', err);
+        setError('Unable to load matches data. Please check your connection.');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadMatches();
+  }, []);
+
+  const toggleSave = (id: string) => {
     setSavedIds((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
   };
+
+  const handleApply = (matchId: string, company: string) => {
+    setAppliedIds(prev => new Set([...prev, matchId]));
+    toast.success(`Application submitted to ${company}!`);
+  };
+
+  const handleExpressInterest = (matchId: string, company: string) => {
+    setInterestedIds(prev => new Set([...prev, matchId]));
+    toast.success(`Interest expressed to ${company}!`);
+  };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="space-y-8 pb-12">
+        <div className="rounded-[2.5rem] glass-card p-8 h-64 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-12 h-12 border-4 border-[#3E63F5]/20 border-t-[#3E63F5] rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-[14px] font-medium text-[#1F2430]/60">Loading your matches...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="space-y-8 pb-12">
+        <div className="rounded-[2.5rem] glass-card p-8 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-[#F59E0B]/10 flex items-center justify-center text-[#F59E0B]">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="font-[Manrope,sans-serif] text-[18px] font-bold text-[#1F2430] mb-1">
+              Demo Data Unavailable
+            </h3>
+            <p className="text-[14px] text-[#1F2430]/60">{error}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show zero state if no matches
+  const showZeroState = matches.length === 0;
 
   return (
     <div className="space-y-8 pb-12">
@@ -231,18 +217,14 @@ export function MatchesScreen() {
               High-signal role alignments based on your verified technical profile.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2 ml-[52px] md:ml-0">
-            <button 
-              onClick={() => setShowZeroState(!showZeroState)}
-              className="px-3 py-2 rounded-xl bg-white/40 hover:bg-white border border-[#1F2430]/10 text-[12px] font-bold text-[#1F2430]/50 transition-colors"
-            >
-              Toggle Zero State
-            </button>
-            <div className="px-4 py-2 glass-card rounded-xl flex items-center gap-2 text-[13px] font-bold text-[#1F2430]/70">
-              <TrendingUp className="w-4 h-4 text-[#10B981]" />
-              {matches.length} curated this week
+          {!showZeroState && (
+            <div className="flex flex-wrap items-center gap-2 ml-[52px] md:ml-0">
+              <div className="px-4 py-2 glass-card rounded-xl flex items-center gap-2 text-[13px] font-bold text-[#1F2430]/70">
+                <TrendingUp className="w-4 h-4 text-[#10B981]" />
+                {matches.length} curated this week
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </AnimatedContent>
 
@@ -266,100 +248,141 @@ export function MatchesScreen() {
             transition={{ duration: 0.3 }}
             className="space-y-6"
           >
-            {matches.map((match, i) => (
-              <AnimatedContent key={match.id} direction="vertical" distance={30} delay={0.05 * i}>
-                <motion.div
-                  className="glass-card rounded-[2rem] p-6 md:p-8 flex flex-col lg:flex-row gap-8 group relative overflow-hidden border border-white/80 transition-all hover:border-[#3E63F5]/20 hover:shadow-[0_24px_48px_rgba(62,99,245,0.05)]"
-                >
-                  {/* Subtle Background Accent */}
-                  <div className="absolute right-0 top-0 w-1/2 h-full bg-gradient-to-l from-white/60 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  
-                  {/* Left Column: Role Details */}
-                  <div className="lg:w-[45%] flex flex-col relative z-10">
-                    <div className="flex items-start gap-4 mb-4">
-                      <div className="w-16 h-16 rounded-2xl bg-white border border-[#1F2430]/5 shadow-sm flex items-center justify-center overflow-hidden shrink-0 group-hover:shadow-md transition-shadow">
-                        <ImageWithFallback src={match.logo} alt={match.company} className="w-10 h-10 object-contain" />
-                      </div>
-                      <div>
-                        <MatchBadge level={match.matchLevel} />
-                        <h3 className="font-[Manrope,sans-serif] text-[22px] font-bold text-[#1F2430] leading-tight mt-2 mb-1">
-                          {match.role}
-                        </h3>
-                        <div className="flex items-center gap-2 text-[15px] font-bold text-[#1F2430]/70">
-                          <Building2 className="w-4 h-4" /> {match.company}
+            {matches.map((match, i) => {
+              const isApplied = appliedIds.has(match.id);
+              const isInterested = interestedIds.has(match.id);
+              
+              return (
+                <AnimatedContent key={match.id} direction="vertical" distance={30} delay={0.05 * i}>
+                  <motion.div
+                    className="glass-card rounded-[2rem] p-6 md:p-8 flex flex-col lg:flex-row gap-8 group relative overflow-hidden border border-white/80 transition-all hover:border-[#3E63F5]/20 hover:shadow-[0_24px_48px_rgba(62,99,245,0.05)]"
+                  >
+                    {/* Subtle Background Accent */}
+                    <div className="absolute right-0 top-0 w-1/2 h-full bg-gradient-to-l from-white/60 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                    
+                    {/* Left Column: Role Details */}
+                    <div className="lg:w-[45%] flex flex-col relative z-10">
+                      <div className="flex items-start gap-4 mb-4">
+                        <div className="w-16 h-16 rounded-2xl bg-white border border-[#1F2430]/5 shadow-sm flex items-center justify-center overflow-hidden shrink-0 group-hover:shadow-md transition-shadow">
+                          {match.company_logo ? (
+                            <ImageWithFallback src={match.company_logo} alt={match.company} className="w-10 h-10 object-contain" />
+                          ) : (
+                            <Building2 className="w-8 h-8 text-[#1F2430]/20" />
+                          )}
+                        </div>
+                        <div>
+                          <MatchBadge level={match.match_label as MatchLevel} />
+                          <h3 className="font-[Manrope,sans-serif] text-[22px] font-bold text-[#1F2430] leading-tight mt-2 mb-1">
+                            {match.role}
+                          </h3>
+                          <div className="flex items-center gap-2 text-[15px] font-bold text-[#1F2430]/70">
+                            <Building2 className="w-4 h-4" /> {match.company}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-[#1F2430]/60 font-medium mb-6">
-                      <span className="flex items-center gap-1.5 bg-white/50 px-2 py-1 rounded-md border border-white">
-                        <MapPin className="w-3.5 h-3.5" /> {match.location}
-                      </span>
-                      <span className="flex items-center gap-1.5 bg-white/50 px-2 py-1 rounded-md border border-white">
-                        <Clock className="w-3.5 h-3.5" /> {match.matchedAt}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2 mt-auto">
-                      {match.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="px-3 py-1.5 rounded-lg bg-[#1F2430]/5 text-[#1F2430]/70 text-[12px] font-bold tracking-wide border border-[#1F2430]/10"
-                        >
-                          {tag}
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-[#1F2430]/60 font-medium mb-6">
+                        <span className="flex items-center gap-1.5 bg-white/50 px-2 py-1 rounded-md border border-white">
+                          <MapPin className="w-3.5 h-3.5" /> {match.location}
                         </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Divider */}
-                  <div className="hidden lg:block w-px bg-gradient-to-b from-transparent via-[#1F2430]/10 to-transparent" />
-                  <div className="block lg:hidden h-px w-full bg-gradient-to-r from-transparent via-[#1F2430]/10 to-transparent" />
-
-                  {/* Right Column: Match Reasoning & Actions */}
-                  <div className="lg:w-[55%] flex flex-col justify-center relative z-10 pt-4 lg:pt-0">
-                    
-                    {/* The "Why" Box */}
-                    <div className="mb-6 p-5 rounded-2xl bg-[#F8F9FC]/80 border border-white/60 relative">
-                      <div className="absolute -top-3 left-6 px-3 py-1 rounded-full bg-white border border-[#1F2430]/10 text-[11px] font-bold text-[#3E63F5] flex items-center gap-1.5 shadow-sm">
-                        <ShieldCheck className="w-3.5 h-3.5" /> Verified Skill: {match.verifiedSkill}
-                      </div>
-                      <p className="text-[14px] text-[#1F2430]/80 font-medium leading-relaxed mt-2 text-pretty">
-                        {match.matchReason}
-                      </p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3 mt-auto">
-                      {match.actionType === "apply" ? (
-                        <button className="flex-1 min-w-[180px] py-3.5 rounded-xl bg-[#3E63F5] text-white text-[14px] font-bold shadow-[0_4px_16px_rgba(62,99,245,0.25)] hover:bg-[#2A44B0] transition-all flex items-center justify-center gap-2 group/btn">
-                          <Send className="w-4 h-4" /> Apply with Profile
-                        </button>
-                      ) : (
-                        <button className="flex-1 min-w-[180px] py-3.5 rounded-xl bg-white text-[#1F2430] border border-[#1F2430]/10 text-[14px] font-bold shadow-sm hover:border-[#1F2430]/30 hover:bg-[#F8F9FC] transition-all flex items-center justify-center gap-2 group/btn">
-                          <Zap className="w-4 h-4 text-[#F59E0B]" /> Express Interest
-                        </button>
-                      )}
-                      
-                      <button
-                        onClick={(e) => { e.stopPropagation(); toggleSave(match.id); }}
-                        className={`w-12 h-12 rounded-xl border flex items-center justify-center transition-colors ${
-                          savedIds.has(match.id) 
-                            ? 'bg-[#F59E0B]/10 border-[#F59E0B]/20 text-[#F59E0B]' 
-                            : 'bg-white/60 border-white/80 text-[#1F2430]/50 hover:text-[#1F2430]'
-                        }`}
-                      >
-                        {savedIds.has(match.id) ? (
-                          <BookmarkCheck className="w-5 h-5" />
-                        ) : (
-                          <Bookmark className="w-5 h-5" />
+                        {match.posted_date && (
+                          <span className="flex items-center gap-1.5 bg-white/50 px-2 py-1 rounded-md border border-white">
+                            <Clock className="w-3.5 h-3.5" /> {match.posted_date}
+                          </span>
                         )}
-                      </button>
-                    </div>
-                  </div>
+                        {match.salary_range && (
+                          <span className="font-bold text-[#10B981]">{match.salary_range}</span>
+                        )}
+                      </div>
 
-                </motion.div>
-              </AnimatedContent>
-            ))}
+                      <div className="flex flex-wrap gap-2 mt-auto">
+                        <span className="px-3 py-1.5 rounded-lg bg-[#1F2430]/5 text-[#1F2430]/70 text-[12px] font-bold tracking-wide border border-[#1F2430]/10">
+                          View details →
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Divider */}
+                    <div className="hidden lg:block w-px bg-gradient-to-b from-transparent via-[#1F2430]/10 to-transparent" />
+                    <div className="block lg:hidden h-px w-full bg-gradient-to-r from-transparent via-[#1F2430]/10 to-transparent" />
+
+                    {/* Right Column: Match Reasoning & Actions */}
+                    <div className="lg:w-[55%] flex flex-col justify-center relative z-10 pt-4 lg:pt-0">
+                      
+                      {/* The "Why" Box */}
+                      <div className="mb-6 p-5 rounded-2xl bg-[#F8F9FC]/80 border border-white/60 relative">
+                        <div className="absolute -top-3 left-6 px-3 py-1 rounded-full bg-white border border-[#1F2430]/10 text-[11px] font-bold text-[#3E63F5] flex items-center gap-1.5 shadow-sm">
+                          <ShieldCheck className="w-3.5 h-3.5" /> Evidence-backed match
+                        </div>
+                        <p className="text-[14px] text-[#1F2430]/80 font-medium leading-relaxed mt-2 text-pretty">
+                          {match.evidence_reason}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-3 mt-auto">
+                        {match.action_type === "apply" ? (
+                          <button 
+                            onClick={() => handleApply(match.id, match.company)}
+                            disabled={isApplied}
+                            className={`flex-1 min-w-[180px] py-3.5 rounded-xl text-white text-[14px] font-bold shadow-[0_4px_16px_rgba(62,99,245,0.25)] transition-all flex items-center justify-center gap-2 group/btn ${
+                              isApplied 
+                                ? 'bg-[#10B981] cursor-default' 
+                                : 'bg-[#3E63F5] hover:bg-[#2A44B0]'
+                            }`}
+                          >
+                            {isApplied ? (
+                              <>
+                                <CheckCircle2 className="w-4 h-4" /> Applied
+                              </>
+                            ) : (
+                              <>
+                                <Send className="w-4 h-4" /> Apply with Profile
+                              </>
+                            )}
+                          </button>
+                        ) : (
+                          <button 
+                            onClick={() => handleExpressInterest(match.id, match.company)}
+                            disabled={isInterested}
+                            className={`flex-1 min-w-[180px] py-3.5 rounded-xl border text-[14px] font-bold shadow-sm transition-all flex items-center justify-center gap-2 group/btn ${
+                              isInterested
+                                ? 'bg-[#10B981]/10 border-[#10B981]/20 text-[#10B981] cursor-default'
+                                : 'bg-white text-[#1F2430] border-[#1F2430]/10 hover:border-[#1F2430]/30 hover:bg-[#F8F9FC]'
+                            }`}
+                          >
+                            {isInterested ? (
+                              <>
+                                <CheckCircle2 className="w-4 h-4" /> Interest Expressed
+                              </>
+                            ) : (
+                              <>
+                                <Zap className="w-4 h-4 text-[#F59E0B]" /> Express Interest
+                              </>
+                            )}
+                          </button>
+                        )}
+                        
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleSave(match.id); }}
+                          className={`w-12 h-12 rounded-xl border flex items-center justify-center transition-colors ${
+                            savedIds.has(match.id) 
+                              ? 'bg-[#F59E0B]/10 border-[#F59E0B]/20 text-[#F59E0B]' 
+                              : 'bg-white/60 border-white/80 text-[#1F2430]/50 hover:text-[#1F2430]'
+                          }`}
+                        >
+                          {savedIds.has(match.id) ? (
+                            <BookmarkCheck className="w-5 h-5" />
+                          ) : (
+                            <Bookmark className="w-5 h-5" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                  </motion.div>
+                </AnimatedContent>
+              );
+            })}
           </motion.div>
         )}
       </AnimatePresence>
