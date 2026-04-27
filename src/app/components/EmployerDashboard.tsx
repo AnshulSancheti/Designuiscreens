@@ -1,81 +1,126 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  Search, Filter, Briefcase, Bookmark, UserPlus, ShieldCheck, 
-  ChevronRight, Lock, MapPin, Zap, CheckCircle2, TrendingUp, X
+import {
+  Search, Filter, Briefcase, Bookmark, UserPlus, ShieldCheck,
+  ChevronRight, Lock, MapPin, Zap, CheckCircle2, TrendingUp, X, Loader2, AlertCircle
 } from "lucide-react";
 import { AnimatedContent } from "./ui/AnimatedContent";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { DotGrid } from "./ui/DotGrid";
 import { Orb } from "./ui/Orb";
-
-const candidates = [
-  {
-    id: 1,
-    roleFit: 96,
-    role: "Senior Frontend Engineer",
-    traits: ["System Architecture", "Performance Optimization", "Mentorship"],
-    skills: ["React", "TypeScript", "State Management", "WebGL"],
-    freshness: "Interviewed 2 days ago",
-    location: "Remote (US)",
-    experience: "8 years",
-    availability: "2 weeks",
-    status: "new",
-  },
-  {
-    id: 2,
-    roleFit: 92,
-    role: "Frontend Engineer",
-    traits: ["Product Sense", "Animation", "UI Polish"],
-    skills: ["React", "Framer Motion", "CSS Architecture"],
-    freshness: "Interviewed 1 week ago",
-    location: "San Francisco, CA",
-    experience: "4 years",
-    availability: "Immediate",
-    status: "new",
-  },
-  {
-    id: 3,
-    roleFit: 89,
-    role: "Staff Frontend Engineer",
-    traits: ["Technical Strategy", "Design Systems", "Cross-team Comm"],
-    skills: ["TypeScript", "React", "Node.js", "Accessibility"],
-    freshness: "Interviewed 3 days ago",
-    location: "Remote (Global)",
-    experience: "10+ years",
-    availability: "4 weeks",
-    status: "saved",
-  },
-  {
-    id: 4,
-    roleFit: 85,
-    role: "Frontend Developer",
-    traits: ["Fast Learner", "Execution Speed", "Testing"],
-    skills: ["React", "Next.js", "Tailwind CSS"],
-    freshness: "Interviewed 12 hours ago",
-    location: "New York, NY",
-    experience: "2 years",
-    availability: "Immediate",
-    status: "new",
-  },
-];
-
-const jobs = [
-  { id: 1, title: "Senior Frontend Engineer", department: "Engineering", active: true },
-  { id: 2, title: "Staff Frontend Engineer", department: "Core UI", active: false },
-  { id: 3, title: "Product Designer", department: "Design", active: false },
-];
+import { demoApi, type EmployerResponse, type Job, type DiscoveryCandidate, getDemoModeActive } from "../lib/demoApi";
 
 export function EmployerDashboard() {
-  const [activeJobId, setActiveJobId] = useState(1);
-  const [savedCandidates, setSavedCandidates] = useState<number[]>([3]);
+  const [employerData, setEmployerData] = useState<EmployerResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [savedCandidates, setSavedCandidates] = useState<string[]>([]);
+  const [passedCandidates, setPassedCandidates] = useState<string[]>([]);
+  const [requestedIntros, setRequestedIntros] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isDemoMode, setIsDemoMode] = useState(getDemoModeActive());
 
-  const handleSave = (id: number) => {
-    setSavedCandidates(prev => 
+  useEffect(() => {
+    const handleDemoModeChange = (e: Event) => {
+      const customEvent = e as CustomEvent<boolean>;
+      setIsDemoMode(customEvent.detail);
+    };
+
+    window.addEventListener('demo-mode-changed', handleDemoModeChange);
+    setIsDemoMode(getDemoModeActive());
+
+    return () => {
+      window.removeEventListener('demo-mode-changed', handleDemoModeChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    async function loadEmployerData() {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await demoApi.getEmployer();
+        setEmployerData(data);
+
+        // Set first job as active by default
+        if (data.jobs.length > 0) {
+          setActiveJobId(data.jobs[0].id);
+        }
+
+        // Initialize saved candidates from shortlist
+        setSavedCandidates(data.shortlist.map(c => c.id));
+
+        // Initialize requested intros
+        setRequestedIntros(data.intro_requests.map(r => r.candidate_id));
+      } catch (err) {
+        console.error('Failed to load employer data:', err);
+        setError('Unable to load employer dashboard');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadEmployerData();
+  }, []);
+
+  const handleSave = (id: string) => {
+    setSavedCandidates(prev =>
       prev.includes(id) ? prev.filter(cId => cId !== id) : [...prev, id]
     );
   };
+
+  const handlePass = (id: string) => {
+    setPassedCandidates(prev => [...prev, id]);
+  };
+
+  const handleRequestIntro = (id: string) => {
+    setRequestedIntros(prev => [...prev, id]);
+  };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen w-full bg-[#F8F7F5] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-10 h-10 text-[#3E63F5] animate-spin" />
+          <p className="text-[14px] font-semibold text-[#1F2430]/60">Loading employer dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error || !employerData) {
+    return (
+      <div className="min-h-screen w-full bg-[#F8F7F5] flex items-center justify-center p-4 md:p-6">
+        <div className="glass-card rounded-[2.5rem] p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-4 max-w-2xl w-full border border-white shadow-sm">
+          <div className="flex items-start md:items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-[#F59E0B]/10 flex items-center justify-center text-[#F59E0B] shrink-0">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-[Manrope,sans-serif] text-[18px] font-bold text-[#1F2430] mb-1">
+                Demo Data Unavailable
+              </h3>
+              <p className="text-[14px] text-[#1F2430]/60">
+                {error || 'Could not connect to the backend. Please check your connection and try again.'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            className="w-full md:w-auto px-6 py-3 md:py-2.5 rounded-xl bg-[#3E63F5] text-white text-[15px] md:text-[14px] font-bold shadow-sm hover:bg-[#2A44B0] transition-colors whitespace-nowrap shrink-0 mt-2 md:mt-0"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Filter out passed candidates from the discovery feed
+  const candidates = employerData.discovery_feed.filter(c => !passedCandidates.includes(c.id));
+  const jobs = employerData.jobs;
 
   return (
     <div className="min-h-screen w-full bg-[#F8F7F5] relative overflow-hidden font-[Inter,sans-serif] selection:bg-[#10B981] selection:text-white">
@@ -112,7 +157,12 @@ export function EmployerDashboard() {
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-[#10B981] flex items-center justify-center text-white font-bold font-[Manrope,sans-serif] shadow-sm">P</div>
             <span className="font-[Manrope,sans-serif] text-[16px] font-bold text-[#1F2430] tracking-tight">PlacedOn</span>
-            <span className="px-2 py-0.5 rounded-md bg-[#1F2430]/5 text-[#1F2430]/60 text-[11px] font-bold uppercase tracking-wider ml-2">Employer</span>
+            <span className="px-2 py-0.5 rounded-md bg-[#1F2430]/5 text-[#1F2430]/60 text-[11px] font-bold uppercase tracking-wider ml-2 hidden sm:block">Employer</span>
+            {isDemoMode && (
+              <span className="px-2 py-0.5 rounded-md bg-[#F59E0B]/10 text-[#F59E0B] text-[10px] font-bold uppercase tracking-wider border border-[#F59E0B]/20 ml-2">
+                Demo Data
+              </span>
+            )}
           </div>
           
           <div className="flex items-center gap-4">
@@ -147,9 +197,9 @@ export function EmployerDashboard() {
             {/* Metrics */}
             <div className="flex gap-3 overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
               {[
-                { label: "Open Jobs", value: "3", icon: <Briefcase className="w-4 h-4" /> },
+                { label: "Open Jobs", value: jobs.length.toString(), icon: <Briefcase className="w-4 h-4" /> },
                 { label: "Saved Profiles", value: savedCandidates.length.toString(), icon: <Bookmark className="w-4 h-4" /> },
-                { label: "Intro Requests", value: "12", icon: <UserPlus className="w-4 h-4" /> },
+                { label: "Intro Requests", value: employerData.intro_requests.length.toString(), icon: <UserPlus className="w-4 h-4" /> },
               ].map((metric, i) => (
                 <div key={i} className="glass-card rounded-xl px-4 py-3 min-w-[130px] shrink-0 border border-white flex flex-col justify-between">
                   <div className="flex items-center gap-2 text-[#1F2430]/50 mb-2">
@@ -175,8 +225,8 @@ export function EmployerDashboard() {
                     key={job.id}
                     onClick={() => setActiveJobId(job.id)}
                     className={`w-full text-left px-3 py-2.5 rounded-xl transition-all ${
-                      activeJobId === job.id 
-                        ? "bg-white shadow-sm border border-white/80" 
+                      activeJobId === job.id
+                        ? "bg-white shadow-sm border border-white/80"
                         : "hover:bg-white/40 text-[#1F2430]/60 hover:text-[#1F2430]"
                     }`}
                   >
@@ -213,13 +263,13 @@ export function EmployerDashboard() {
                   />
                 </div>
                 <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 hide-scrollbar px-1">
-                  <button className="px-3 py-2 rounded-lg bg-white/60 border border-white/80 text-[12px] font-bold text-[#1F2430]/70 hover:bg-white transition-colors whitespace-nowrap flex items-center gap-1.5">
+                  <button className="px-3 py-2.5 rounded-lg bg-white/60 border border-white/80 text-[12px] font-bold text-[#1F2430]/70 hover:bg-white transition-colors whitespace-nowrap flex items-center gap-1.5">
                     <Zap className="w-3.5 h-3.5" /> Match &gt; 90%
                   </button>
-                  <button className="px-3 py-2 rounded-lg bg-white/60 border border-white/80 text-[12px] font-bold text-[#1F2430]/70 hover:bg-white transition-colors whitespace-nowrap">
+                  <button className="px-3 py-2.5 rounded-lg bg-white/60 border border-white/80 text-[12px] font-bold text-[#1F2430]/70 hover:bg-white transition-colors whitespace-nowrap">
                     Remote Only
                   </button>
-                  <button className="px-3 py-2 rounded-lg bg-[#1F2430]/5 text-[12px] font-bold text-[#1F2430]/60 hover:bg-[#1F2430]/10 transition-colors whitespace-nowrap flex items-center gap-1.5 ml-auto">
+                  <button className="px-3 py-2.5 rounded-lg bg-[#1F2430]/5 text-[12px] font-bold text-[#1F2430]/60 hover:bg-[#1F2430]/10 transition-colors whitespace-nowrap flex items-center gap-1.5 ml-auto">
                     <Filter className="w-3.5 h-3.5" /> All Filters
                   </button>
                 </div>
@@ -230,7 +280,7 @@ export function EmployerDashboard() {
             <div className="space-y-4 pb-20">
               {candidates.map((candidate, i) => (
                 <AnimatedContent key={candidate.id} direction="vertical" distance={20} delay={0.2 + (i * 0.05)}>
-                  <motion.div 
+                  <motion.div
                     className="glass-card rounded-[1.5rem] p-5 md:p-6 border border-white relative overflow-hidden group hover:shadow-[0_16px_48px_rgba(30,35,60,0.06)] transition-all"
                   >
                     {/* Top Row: Anonymous ID & Match Score */}
@@ -243,52 +293,36 @@ export function EmployerDashboard() {
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <h3 className="font-[Manrope,sans-serif] font-bold text-[#1F2430] text-[15px]">Candidate #{String(candidate.id).padStart(4, '0')}</h3>
-                            {candidate.status === 'new' && (
-                              <span className="w-2 h-2 rounded-full bg-[#3E63F5] shadow-[0_0_8px_rgba(62,99,245,0.6)]" />
-                            )}
+                            <h3 className="font-[Manrope,sans-serif] font-bold text-[#1F2430] text-[15px]">{candidate.name}</h3>
+                            <span className="w-2 h-2 rounded-full bg-[#3E63F5] shadow-[0_0_8px_rgba(62,99,245,0.6)]" />
                           </div>
                           <p className="text-[12px] text-[#1F2430]/50 font-medium flex items-center gap-1.5 mt-0.5">
-                            <TrendingUp className="w-3 h-3" /> {candidate.freshness}
+                            <TrendingUp className="w-3 h-3" /> {candidate.target_role}
                           </p>
                         </div>
                       </div>
-                      
+
                       <div className="flex flex-col items-end">
                         <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#10B981]/10 border border-[#10B981]/20">
                           <Zap className="w-4 h-4 text-[#10B981]" />
-                          <span className="font-bold text-[14px] text-[#10B981]">{candidate.roleFit}% Fit</span>
+                          <span className="font-bold text-[14px] text-[#10B981]">{candidate.match_score}% Fit</span>
                         </div>
-                        <span className="text-[11px] font-bold text-[#1F2430]/40 uppercase tracking-wider mt-1.5 mr-1">For {candidate.role}</span>
+                        <span className="text-[11px] font-bold text-[#1F2430]/40 uppercase tracking-wider mt-1.5 mr-1">{candidate.evidence_strength}</span>
                       </div>
                     </div>
 
-                    {/* Middle Row: Traits & Skills */}
+                    {/* Middle Row: Key Signals */}
                     <div className="bg-white/50 rounded-2xl p-4 border border-white/60 mb-5">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-[11px] font-bold text-[#1F2430]/40 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-[#10B981]" /> Verified Traits
-                          </p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {candidate.traits.map(trait => (
-                              <span key={trait} className="px-2 py-1 rounded-md bg-white border border-[#1F2430]/5 text-[12px] font-bold text-[#1F2430]/80 shadow-sm">
-                                {trait}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <p className="text-[11px] font-bold text-[#1F2430]/40 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                            <ShieldCheck className="w-3.5 h-3.5 text-[#3E63F5]" /> Technical Skills
-                          </p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {candidate.skills.map(skill => (
-                              <span key={skill} className="px-2 py-1 rounded-md bg-[#3E63F5]/5 border border-[#3E63F5]/10 text-[12px] font-bold text-[#3E63F5]">
-                                {skill}
-                              </span>
-                            ))}
-                          </div>
+                      <div>
+                        <p className="text-[11px] font-bold text-[#1F2430]/40 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-[#10B981]" /> Key Signals
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {candidate.key_signals.map((signal, idx) => (
+                            <span key={idx} className="px-2 py-1 rounded-md bg-white border border-[#1F2430]/5 text-[12px] font-bold text-[#1F2430]/80 shadow-sm">
+                              {signal}
+                            </span>
+                          ))}
                         </div>
                       </div>
                     </div>
@@ -297,26 +331,44 @@ export function EmployerDashboard() {
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                       <div className="flex flex-wrap items-center gap-4 text-[12px] font-medium text-[#1F2430]/60 w-full sm:w-auto">
                         <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> {candidate.location}</span>
-                        <span className="flex items-center gap-1.5"><Briefcase className="w-3.5 h-3.5" /> {candidate.experience}</span>
-                        <span className="flex items-center gap-1.5">Available in {candidate.availability}</span>
+                        <span className="flex items-center gap-1.5">Available from {candidate.available_from}</span>
                       </div>
-                      
+
                       <div className="flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
-                        <button className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-white/60 border border-white text-[#1F2430]/60 text-[13px] font-bold hover:bg-white hover:text-[#1F2430] transition-colors shadow-sm">
+                        <button
+                          onClick={() => handlePass(candidate.id)}
+                          className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-white/60 border border-white text-[#1F2430]/60 text-[13px] font-bold hover:bg-white hover:text-[#1F2430] transition-colors shadow-sm"
+                        >
                           Pass
                         </button>
-                        <button 
+                        <button
                           onClick={() => handleSave(candidate.id)}
-                          className={`flex-none w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-sm border ${
+                          className={`flex-none w-11 h-11 rounded-xl flex items-center justify-center transition-all shadow-sm border ${
                             savedCandidates.includes(candidate.id)
                               ? "bg-[#1F2430] border-[#1F2430] text-white"
                               : "bg-white border-white/80 text-[#1F2430]/50 hover:text-[#1F2430]"
                           }`}
                         >
-                          <Bookmark className="w-4.5 h-4.5" fill={savedCandidates.includes(candidate.id) ? "currentColor" : "none"} />
+                          <Bookmark className="w-5 h-5" fill={savedCandidates.includes(candidate.id) ? "currentColor" : "none"} />
                         </button>
-                        <button className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl bg-[#10B981] text-white text-[13px] font-bold shadow-[0_4px_16px_rgba(16,185,129,0.3)] hover:shadow-[0_8px_24px_rgba(16,185,129,0.4)] transition-shadow flex items-center justify-center gap-1.5">
-                          Request Intro
+                        <button
+                          onClick={() => handleRequestIntro(candidate.id)}
+                          disabled={requestedIntros.includes(candidate.id)}
+                          className={`flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-[13px] font-bold transition-all flex items-center justify-center gap-1.5 ${
+                            requestedIntros.includes(candidate.id)
+                              ? "bg-[#1F2430]/10 text-[#1F2430] border border-[#1F2430]/20 cursor-default"
+                              : "bg-[#10B981] text-white shadow-[0_4px_16px_rgba(16,185,129,0.3)] hover:shadow-[0_8px_24px_rgba(16,185,129,0.4)]"
+                          }`}
+                        >
+                          {requestedIntros.includes(candidate.id) ? (
+                            <>
+                              <CheckCircle2 className="w-4 h-4" /> Intro Requested
+                            </>
+                          ) : (
+                            <>
+                              Request Intro
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>
@@ -361,25 +413,25 @@ export function EmployerDashboard() {
                   <span className="w-6 h-6 rounded-full bg-[#1F2430]/10 flex items-center justify-center text-[11px] font-bold text-[#1F2430]">{savedCandidates.length}</span>
                 </div>
                 
-                {savedCandidates.length === 0 ? (
+                {employerData.shortlist.length === 0 ? (
                   <div className="text-center py-6 text-[13px] font-medium text-[#1F2430]/40 border border-dashed border-[#1F2430]/10 rounded-xl bg-white/30">
                     No candidates saved yet
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {savedCandidates.map(id => (
-                      <div key={id} className="flex items-center justify-between p-2.5 rounded-xl bg-white/60 border border-white shadow-sm group">
+                    {employerData.shortlist.map(candidate => (
+                      <div key={candidate.id} className="flex items-center justify-between p-2.5 rounded-xl bg-white/60 border border-white shadow-sm group">
                         <div className="flex items-center gap-2.5">
                           <div className="w-8 h-8 rounded-full bg-[#1F2430] flex items-center justify-center">
                             <Lock className="w-3 h-3 text-white/50" />
                           </div>
                           <div>
-                            <div className="text-[12px] font-bold text-[#1F2430]">Candidate #{String(id).padStart(4, '0')}</div>
-                            <div className="text-[10px] font-semibold text-[#10B981]">90%+ Fit</div>
+                            <div className="text-[12px] font-bold text-[#1F2430]">{candidate.name}</div>
+                            <div className="text-[10px] font-semibold text-[#10B981]">{candidate.match_score}% Fit</div>
                           </div>
                         </div>
-                        <button 
-                          onClick={() => handleSave(id)}
+                        <button
+                          onClick={() => handleSave(candidate.id)}
                           className="w-6 h-6 rounded-md flex items-center justify-center text-[#1F2430]/30 hover:bg-[#1F2430]/10 hover:text-[#1F2430] transition-colors"
                         >
                           <X className="w-3.5 h-3.5" />

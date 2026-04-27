@@ -1,13 +1,28 @@
 import { Bell, Shield, Key, Eye, Monitor, LogOut, AlertCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
-import { demoApi, SettingsResponse } from '../lib/demoApi';
+import { demoApi, SettingsResponse, getDemoModeActive } from '../lib/demoApi';
 
 export function SettingsScreen() {
   const navigate = useNavigate();
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDemoMode, setIsDemoMode] = useState(getDemoModeActive());
+
+  useEffect(() => {
+    const handleDemoModeChange = (e: Event) => {
+      const customEvent = e as CustomEvent<boolean>;
+      setIsDemoMode(customEvent.detail);
+    };
+
+    window.addEventListener('demo-mode-changed', handleDemoModeChange);
+    setIsDemoMode(getDemoModeActive());
+
+    return () => {
+      window.removeEventListener('demo-mode-changed', handleDemoModeChange);
+    };
+  }, []);
 
   useEffect(() => {
     async function loadSettings() {
@@ -68,12 +83,39 @@ export function SettingsScreen() {
 
     return (
       <div className="flex flex-col gap-6 animate-[pulse-glow_0.5s_ease-out]">
-        {error && (
-          <div className="rounded-[1.5rem] glass-card p-4 flex items-center gap-3 border-[#F59E0B]/20">
-            <div className="w-10 h-10 rounded-xl bg-[#F59E0B]/10 flex items-center justify-center text-[#F59E0B]">
-              <AlertCircle className="w-5 h-5" />
+        
+        {isDemoMode && (
+          <div className="bg-[#1F2430] text-white px-4 py-3 rounded-xl flex items-center justify-between shadow-lg">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-[#F59E0B]" />
+              <div>
+                <p className="text-[14px] font-bold">Demo Data</p>
+                <p className="text-[13px] text-white/70">Backend connection unavailable. Showing fallback preview data.</p>
+              </div>
             </div>
-            <p className="text-[13px] text-[#1F2430]/60 font-medium">{error}</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-[13px] font-medium transition-colors"
+            >
+              Retry Connection
+            </button>
+          </div>
+        )}
+
+        {error && (
+          <div className="rounded-[1.5rem] glass-card p-4 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 border-[#F59E0B]/20">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#F59E0B]/10 flex items-center justify-center text-[#F59E0B] shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <p className="text-[13px] md:text-[14px] text-[#1F2430]/60 font-medium">{error}</p>
+            </div>
+            <button 
+              onClick={() => window.location.reload()}
+              className="w-full md:w-auto px-5 py-2.5 rounded-xl bg-[#3E63F5] text-white text-[14px] font-bold shadow-sm hover:bg-[#2A44B0] transition-colors whitespace-nowrap shrink-0"
+            >
+              Retry
+            </button>
           </div>
         )}
         <div className="flex items-center justify-between mb-2">
@@ -96,14 +138,14 @@ export function SettingsScreen() {
                     'visibility': <Eye className="w-5 h-5 text-[#1F2430]/70" />,
                   };
                   return (
-                    <button key={j} className="group flex items-center justify-between p-5 rounded-2xl bg-transparent hover:bg-white/60 transition-all cursor-pointer border border-transparent hover:border-white/80 hover:shadow-sm text-left">
-                      <div className="flex items-center gap-5">
-                        <div className="w-12 h-12 rounded-xl bg-[#F3F2F0] border border-white shadow-inner flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <button key={j} className="group w-full flex items-center justify-between p-4 sm:p-5 rounded-2xl bg-transparent hover:bg-white/60 transition-all cursor-pointer border border-transparent hover:border-white/80 hover:shadow-sm text-left">
+                      <div className="flex items-center gap-4 sm:gap-5 w-full">
+                        <div className="w-12 h-12 shrink-0 rounded-xl bg-[#F3F2F0] border border-white shadow-inner flex items-center justify-center group-hover:scale-105 transition-transform">
                           {icons[item.id as keyof typeof icons] || <Shield className="w-5 h-5 text-[#1F2430]/70" />}
                         </div>
-                        <div>
+                        <div className="flex-1 min-w-0">
                           <h4 className="text-[16px] font-bold text-[#1F2430] leading-tight mb-1">{item.label}</h4>
-                          <p className="text-[13px] font-medium text-[#1F2430]/50">{item.description}</p>
+                          <p className="text-[13px] font-medium text-[#1F2430]/50 pr-2">{item.description}</p>
                         </div>
                       </div>
                     </button>
@@ -160,17 +202,17 @@ export function SettingsScreen() {
                               item.label.toLowerCase().includes('visibility') ? 'eye' : 'shield';
                 
                 return (
-                  <button key={j} className="group flex items-center justify-between p-5 rounded-2xl bg-transparent hover:bg-white/60 transition-all cursor-pointer border border-transparent hover:border-white/80 hover:shadow-sm text-left">
-                    <div className="flex items-center gap-5">
-                      <div className="w-12 h-12 rounded-xl bg-[#F3F2F0] border border-white shadow-inner flex items-center justify-center group-hover:scale-105 transition-transform">
-                        {iconMap[iconKey]}
+                    <button key={j} className="group w-full flex items-center justify-between p-4 sm:p-5 rounded-2xl bg-transparent hover:bg-white/60 transition-all cursor-pointer border border-transparent hover:border-white/80 hover:shadow-sm text-left">
+                      <div className="flex items-center gap-4 sm:gap-5 w-full">
+                        <div className="w-12 h-12 shrink-0 rounded-xl bg-[#F3F2F0] border border-white shadow-inner flex items-center justify-center group-hover:scale-105 transition-transform">
+                          {iconMap[iconKey]}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-[16px] font-bold text-[#1F2430] leading-tight mb-1">{item.label}</h4>
+                          <p className="text-[13px] font-medium text-[#1F2430]/50 pr-2">{item.description}</p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="text-[16px] font-bold text-[#1F2430] leading-tight mb-1">{item.label}</h4>
-                        <p className="text-[13px] font-medium text-[#1F2430]/50">{item.description}</p>
-                      </div>
-                    </div>
-                  </button>
+                    </button>
                 );
               })}
             </div>

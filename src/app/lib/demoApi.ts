@@ -212,7 +212,7 @@ export class DemoAPIError extends Error {
 async function fetchAPI<T>(endpoint: string): Promise<T> {
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`);
-    
+
     if (!response.ok) {
       throw new DemoAPIError(
         `HTTP ${response.status}: ${response.statusText}`,
@@ -220,19 +220,60 @@ async function fetchAPI<T>(endpoint: string): Promise<T> {
         endpoint
       );
     }
-    
+
     return await response.json();
   } catch (error) {
     if (error instanceof DemoAPIError) {
       throw error;
     }
-    
+
     // Network or parsing error
     throw new DemoAPIError(
       `Failed to fetch from ${endpoint}: ${error instanceof Error ? error.message : 'Unknown error'}`,
       undefined,
       endpoint
     );
+  }
+}
+
+// Fetch wrapper with automatic fallback to mock data when backend is unreachable
+// This allows Figma preview to render populated screens even without backend access
+export let demoModeActive = false;
+
+export function getDemoModeActive() {
+  return demoModeActive;
+}
+
+async function fetchWithFallback<T>(
+  endpoint: string,
+  mockData: T | null,
+  delayMs: number = 300
+): Promise<T> {
+  try {
+    // Try real backend first
+    const res = await fetchAPI<T>(endpoint);
+    if (demoModeActive) {
+      demoModeActive = false;
+      window.dispatchEvent(new CustomEvent('demo-mode-changed', { detail: false }));
+    }
+    return res;
+  } catch (error) {
+    // If backend is unreachable (network error, connection refused, etc.),
+    // fall back to mock data so Figma preview renders populated screens
+    console.warn(`Backend unreachable at ${endpoint}, using mock data fallback`);
+    
+    if (!demoModeActive) {
+      demoModeActive = true;
+      window.dispatchEvent(new CustomEvent('demo-mode-changed', { detail: true }));
+    }
+    
+    await delay(delayMs); // Simulate network delay for consistency
+    
+    if (!mockData) {
+      throw new DemoAPIError("Demo data unavailable. Please connect to a real backend or provide mock data.", 503, endpoint);
+    }
+    
+    return mockData;
   }
 }
 
@@ -261,10 +302,10 @@ export const demoApi = {
    */
   async getCandidate(): Promise<CandidateIdentity> {
     if (USE_MOCK_DATA) {
-      await delay(300); // Simulate network delay
+      await delay(300);
       return mockCandidate;
     }
-    return fetchAPI<CandidateIdentity>('/demo/candidate');
+    return fetchWithFallback('/demo/candidate', mockCandidate, 300);
   },
 
   /**
@@ -275,7 +316,7 @@ export const demoApi = {
       await delay(400);
       return mockHCV;
     }
-    return fetchAPI<HCVResponse>('/demo/hcv');
+    return fetchWithFallback('/demo/hcv', mockHCV, 400);
   },
 
   /**
@@ -286,7 +327,7 @@ export const demoApi = {
       await delay(350);
       return mockDashboard;
     }
-    return fetchAPI<DashboardResponse>('/demo/dashboard');
+    return fetchWithFallback('/demo/dashboard', mockDashboard, 350);
   },
 
   /**
@@ -297,7 +338,7 @@ export const demoApi = {
       await delay(320);
       return mockMatches;
     }
-    return fetchAPI<MatchesResponse>('/demo/matches');
+    return fetchWithFallback('/demo/matches', mockMatches, 320);
   },
 
   /**
@@ -308,7 +349,7 @@ export const demoApi = {
       await delay(280);
       return mockApplications;
     }
-    return fetchAPI<ApplicationsResponse>('/demo/applications');
+    return fetchWithFallback('/demo/applications', mockApplications, 280);
   },
 
   /**
@@ -319,7 +360,7 @@ export const demoApi = {
       await delay(310);
       return mockInterviews;
     }
-    return fetchAPI<InterviewsResponse>('/demo/interviews');
+    return fetchWithFallback('/demo/interviews', mockInterviews, 310);
   },
 
   /**
@@ -330,7 +371,7 @@ export const demoApi = {
       await delay(380);
       return mockEmployer;
     }
-    return fetchAPI<EmployerResponse>('/demo/employer');
+    return fetchWithFallback('/demo/employer', mockEmployer, 380);
   },
 
   /**
@@ -341,6 +382,6 @@ export const demoApi = {
       await delay(290);
       return mockSettings;
     }
-    return fetchAPI<SettingsResponse>('/demo/settings');
+    return fetchWithFallback('/demo/settings', mockSettings, 290);
   },
 };

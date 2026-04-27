@@ -153,7 +153,7 @@ export function AuthPage() {
 
           <div className="mt-8 text-center">
              <p className="text-[13px] text-[#1F2430]/50 font-medium">
-               By continuing, you agree to our <a href="#" className="underline hover:text-[#1F2430] transition-colors">Terms of Service</a> and <a href="#" className="underline hover:text-[#1F2430] transition-colors">Privacy Policy</a>.
+               By continuing, you agree to our <a href="/terms" className="underline hover:text-[#1F2430] transition-colors">Terms of Service</a> and <a href="/privacy" className="underline hover:text-[#1F2430] transition-colors">Privacy Policy</a>.
              </p>
           </div>
         </AnimatedContent>

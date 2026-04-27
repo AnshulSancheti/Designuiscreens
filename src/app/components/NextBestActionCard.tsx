@@ -95,8 +95,8 @@ const actionData: Record<NextActionState, {
     tagText: 'Next Step',
   },
   respond_employer_interest: {
-    title: 'New match from Acme Corp',
-    description: 'Acme Corp is interested in your Frontend Engineering profile. Review their pitch and decide if you want to share your full profile.',
+    title: 'New match from Linear',
+    description: 'Linear is interested in your Frontend Engineering profile. Review their pitch and decide if you want to share your full profile.',
     buttonText: 'Review Interest',
     buttonIcon: <Briefcase className="w-5 h-5" />,
     accentColor: 'text-[#3E63F5]',
@@ -110,8 +110,8 @@ const actionData: Record<NextActionState, {
     tagText: 'New Match'
   },
   complete_follow_up: {
-    title: 'Complete Acme Corp\'s challenge',
-    description: 'Acme Corp has requested a brief follow-up technical challenge specifically focused on System Design to finalize their evaluation.',
+    title: 'Complete Stripe\'s challenge',
+    description: 'Stripe has requested a brief follow-up technical challenge specifically focused on API idempotency to finalize their evaluation.',
     buttonText: 'Start Challenge',
     buttonIcon: <Code className="w-5 h-5" />,
     accentColor: 'text-[#F43F5E]',
@@ -127,7 +127,7 @@ const actionData: Record<NextActionState, {
   },
   review_offer: {
     title: 'You received an offer!',
-    description: 'Acme Corp has extended an offer for the Senior Frontend Engineer position. Review the compensation details and team information.',
+    description: 'Vercel has extended an offer for the Engineering Lead, Developer Experience position. Review the compensation details and team information.',
     buttonText: 'Review Offer Details',
     buttonIcon: <FileText className="w-5 h-5" />,
     accentColor: 'text-[#10B981]',
@@ -196,7 +196,10 @@ export function NextBestActionCard({ state }: NextBestActionCardProps) {
             {data.buttonText}
           </motion.button>
           
-          <button className="px-6 py-4 rounded-2xl bg-white/60 text-[#1F2430]/60 text-[15px] font-bold shadow-sm border border-white hover:bg-white hover:text-[#1F2430] transition-colors flex items-center gap-2 group/skip">
+          <button
+            onClick={() => navigate('/candidate')}
+            className="px-6 py-4 rounded-2xl bg-white/60 text-[#1F2430]/60 text-[15px] font-bold shadow-sm border border-white hover:bg-white hover:text-[#1F2430] transition-colors flex items-center gap-2 group/skip"
+          >
             Skip for now
           </button>
         </div>

@@ -9,7 +9,7 @@ import { AnimatedContent } from './ui/AnimatedContent';
 import { BlurText } from './ui/BlurText';
 import { motion } from 'motion/react';
 import { NextBestActionCard, NextActionState } from './NextBestActionCard';
-import { demoApi, CandidateIdentity, DashboardResponse } from '../lib/demoApi';
+import { demoApi, CandidateIdentity, DashboardResponse, getDemoModeActive } from '../lib/demoApi';
 import { toast } from 'sonner';
 
 export function UserDashboard() {
@@ -18,6 +18,21 @@ export function UserDashboard() {
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDemoMode, setIsDemoMode] = useState(getDemoModeActive());
+
+  useEffect(() => {
+    const handleDemoModeChange = (e: Event) => {
+      const customEvent = e as CustomEvent<boolean>;
+      setIsDemoMode(customEvent.detail);
+    };
+
+    window.addEventListener('demo-mode-changed', handleDemoModeChange);
+    setIsDemoMode(getDemoModeActive());
+
+    return () => {
+      window.removeEventListener('demo-mode-changed', handleDemoModeChange);
+    };
+  }, []);
 
   useEffect(() => {
     async function loadDashboard() {
@@ -51,6 +66,14 @@ export function UserDashboard() {
     }
   };
 
+  const handleEmailShare = () => {
+    if (candidate?.share_url) {
+      const subject = encodeURIComponent(`Check out my PlacedOn profile - ${candidate.name}`);
+      const body = encodeURIComponent(`I'd like to share my verified technical profile with you:\n\n${candidate.share_url}\n\nThis profile was generated through AI-powered technical interviews and shows evidence-backed skills.`);
+      window.location.href = `mailto:?subject=${subject}&body=${body}`;
+    }
+  };
+
   // Show loading state
   if (isLoading) {
     return (
@@ -69,18 +92,26 @@ export function UserDashboard() {
   if (error || !dashboard || !candidate) {
     return (
       <div className="flex flex-col gap-6">
-        <div className="rounded-[2.5rem] glass-card p-8 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-[#F59E0B]/10 flex items-center justify-center text-[#F59E0B]">
-            <AlertCircle className="w-6 h-6" />
+        <div className="rounded-[2.5rem] glass-card p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start md:items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-[#F59E0B]/10 flex items-center justify-center text-[#F59E0B] shrink-0">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-[Manrope,sans-serif] text-[18px] font-bold text-[#1F2430] mb-1">
+                Demo Data Unavailable
+              </h3>
+              <p className="text-[14px] text-[#1F2430]/60">
+                {error || 'Could not connect to the backend. Please ensure the server is running.'}
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-[Manrope,sans-serif] text-[18px] font-bold text-[#1F2430] mb-1">
-              Demo Data Unavailable
-            </h3>
-            <p className="text-[14px] text-[#1F2430]/60">
-              {error || 'Could not connect to the backend. Please ensure the demo server is running.'}
-            </p>
-          </div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="w-full md:w-auto px-6 py-3 md:py-2.5 rounded-xl bg-[#3E63F5] text-white text-[15px] md:text-[14px] font-bold shadow-sm hover:bg-[#2A44B0] transition-colors whitespace-nowrap shrink-0 mt-2 md:mt-0"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );
@@ -89,6 +120,24 @@ export function UserDashboard() {
   return (
     <div className="flex flex-col gap-6 animate-[pulse-glow_0.5s_ease-out]">
       
+      {isDemoMode && (
+        <div className="bg-[#1F2430] text-white px-4 py-3 rounded-xl flex items-center justify-between shadow-lg">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-[#F59E0B]" />
+            <div>
+              <p className="text-[14px] font-bold">Demo Data</p>
+              <p className="text-[13px] text-white/70">Backend connection unavailable. Showing fallback preview data.</p>
+            </div>
+          </div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-[13px] font-medium transition-colors"
+          >
+            Retry Connection
+          </button>
+        </div>
+      )}
+
       {/* Top Header / Stage Aware Info */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 z-20 relative">
         <div>
@@ -112,7 +161,7 @@ export function UserDashboard() {
             <input 
               type="text"
               placeholder="Search companies, roles..."
-              className="w-full md:w-64 bg-white/60 backdrop-blur-md border border-[#1F2430]/10 rounded-xl py-2 pl-9 pr-4 text-[13px] font-medium text-[#1F2430] placeholder:text-[#1F2430]/40 focus:outline-none focus:ring-2 focus:ring-[#3E63F5]/20 focus:bg-white transition-all"
+              className="w-full md:w-64 bg-white/60 backdrop-blur-md border border-[#1F2430]/10 rounded-xl py-2.5 pl-9 pr-4 text-[13px] font-medium text-[#1F2430] placeholder:text-[#1F2430]/40 focus:outline-none focus:ring-2 focus:ring-[#3E63F5]/20 focus:bg-white transition-all"
             />
           </div>
         </div>
@@ -183,7 +232,10 @@ export function UserDashboard() {
                   <Copy className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <button className="w-full py-3 rounded-xl bg-white text-[#1F2430] text-[13px] font-bold shadow-sm border border-[#1F2430]/[0.06] hover:bg-[#F3F2F0] transition-colors flex items-center justify-center gap-2">
+              <button
+                onClick={handleEmailShare}
+                className="w-full py-3 rounded-xl bg-white text-[#1F2430] text-[13px] font-bold shadow-sm border border-[#1F2430]/[0.06] hover:bg-[#F3F2F0] transition-colors flex items-center justify-center gap-2"
+              >
                 <Send className="w-4 h-4" /> Send via Email
               </button>
             </div>

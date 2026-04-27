@@ -7,7 +7,7 @@ import {
 import { useNavigate } from "react-router";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { AnimatedContent } from "./ui/AnimatedContent";
-import { demoApi, Application as APIApplication } from "../lib/demoApi";
+import { demoApi, Application as APIApplication, getDemoModeActive } from "../lib/demoApi";
 
 type ApplicationStage = 'applied' | 'reviewing' | 'interest' | 'follow-up' | 'interviewing' | 'offer' | 'closed';
 
@@ -26,6 +26,21 @@ export function ApplicationsScreen() {
   const [apps, setApps] = useState<APIApplication[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDemoMode, setIsDemoMode] = useState(getDemoModeActive());
+
+  useEffect(() => {
+    const handleDemoModeChange = (e: Event) => {
+      const customEvent = e as CustomEvent<boolean>;
+      setIsDemoMode(customEvent.detail);
+    };
+
+    window.addEventListener('demo-mode-changed', handleDemoModeChange);
+    setIsDemoMode(getDemoModeActive());
+
+    return () => {
+      window.removeEventListener('demo-mode-changed', handleDemoModeChange);
+    };
+  }, []);
 
   useEffect(() => {
     async function loadApplications() {
@@ -62,16 +77,24 @@ export function ApplicationsScreen() {
   if (error) {
     return (
       <div className="flex flex-col h-full min-h-[calc(100vh-140px)]">
-        <div className="rounded-[2.5rem] glass-card p-8 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-[#F59E0B]/10 flex items-center justify-center text-[#F59E0B]">
-            <AlertCircle className="w-6 h-6" />
+        <div className="rounded-[2.5rem] glass-card p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start md:items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-[#F59E0B]/10 flex items-center justify-center text-[#F59E0B] shrink-0">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-[Manrope,sans-serif] text-[18px] font-bold text-[#1F2430] mb-1">
+                Demo Data Unavailable
+              </h3>
+              <p className="text-[14px] text-[#1F2430]/60">{error}</p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-[Manrope,sans-serif] text-[18px] font-bold text-[#1F2430] mb-1">
-              Demo Data Unavailable
-            </h3>
-            <p className="text-[14px] text-[#1F2430]/60">{error}</p>
-          </div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="w-full md:w-auto px-6 py-3 md:py-2.5 rounded-xl bg-[#3E63F5] text-white text-[15px] md:text-[14px] font-bold shadow-sm hover:bg-[#2A44B0] transition-colors whitespace-nowrap shrink-0 mt-2 md:mt-0"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );
@@ -79,6 +102,25 @@ export function ApplicationsScreen() {
 
   return (
     <div className="flex flex-col h-full min-h-[calc(100vh-140px)] animate-[pulse-glow_0.5s_ease-out]">
+      
+      {isDemoMode && (
+        <div className="bg-[#1F2430] text-white px-4 py-3 rounded-xl flex items-center justify-between shadow-lg mb-6">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-[#F59E0B]" />
+            <div>
+              <p className="text-[14px] font-bold">Demo Data</p>
+              <p className="text-[13px] text-white/70">Backend connection unavailable. Showing fallback preview data.</p>
+            </div>
+          </div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-[13px] font-medium transition-colors"
+          >
+            Retry Connection
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 z-20">
         <div>
@@ -107,7 +149,7 @@ export function ApplicationsScreen() {
                 direction="horizontal" 
                 distance={20} 
                 delay={index * 0.05}
-                className="w-[320px] shrink-0 snap-center flex flex-col"
+                className="w-[85vw] max-w-[320px] shrink-0 snap-center flex flex-col"
               >
                 {/* Stage Column Header */}
                 <div className={`glass-card rounded-[1.5rem] p-4 border border-white/60 mb-5 relative flex items-center justify-between shadow-sm`}>

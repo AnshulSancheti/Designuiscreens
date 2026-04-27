@@ -7,14 +7,14 @@ export function PreInterviewScreen() {
   const [consentReady, setConsentReady] = useState(false);
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 sm:p-8 bg-[#F3F2F0] relative overflow-hidden font-[Inter,sans-serif]">
+    <div className="min-h-screen w-full flex items-start md:items-center justify-center p-4 py-8 sm:p-8 bg-[#F3F2F0] relative overflow-x-hidden overflow-y-auto font-[Inter,sans-serif]">
       {/* Soft Ambient Background Washes */}
-      <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-[#EEF1F8] rounded-full mix-blend-multiply filter blur-[100px] opacity-70" />
-      <div className="absolute bottom-[-10%] right-[-5%] w-[50%] h-[50%] bg-[#F3EFEA] rounded-full mix-blend-multiply filter blur-[100px] opacity-60" />
-      <div className="absolute top-[20%] right-[10%] w-[30%] h-[30%] bg-[#E6EAF5] rounded-full mix-blend-multiply filter blur-[100px] opacity-40" />
+      <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-[#EEF1F8] rounded-full mix-blend-multiply filter blur-[100px] opacity-70 pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-5%] w-[50%] h-[50%] bg-[#F3EFEA] rounded-full mix-blend-multiply filter blur-[100px] opacity-60 pointer-events-none" />
+      <div className="absolute top-[20%] right-[10%] w-[30%] h-[30%] bg-[#E6EAF5] rounded-full mix-blend-multiply filter blur-[100px] opacity-40 pointer-events-none" />
       
       {/* App Shell */}
-      <div className="w-full max-w-[1440px] h-auto md:h-[90vh] md:min-h-[700px] md:max-h-[940px] bg-white/70 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_24px_80px_rgba(30,35,60,0.06),inset_0_2px_4px_rgba(255,255,255,0.9)] ring-1 ring-[#1F2430]/[0.04] flex flex-col md:flex-row overflow-hidden relative z-10">
+      <div className="w-full max-w-[1440px] h-auto md:h-[90vh] md:min-h-[700px] md:max-h-[940px] bg-white/70 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_24px_80px_rgba(30,35,60,0.06),inset_0_2px_4px_rgba(255,255,255,0.9)] ring-1 ring-[#1F2430]/[0.04] flex flex-col md:flex-row relative z-10 my-auto">
         
         {/* Left Column: Content & Process */}
         <div className="w-full md:w-[60%] lg:w-[65%] md:h-full md:overflow-y-auto px-6 py-10 md:px-16 md:py-16 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-[#1F2430]/10 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-[#1F2430]/20 flex flex-col relative z-20">

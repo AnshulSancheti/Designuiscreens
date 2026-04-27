@@ -216,7 +216,7 @@ export function LandingPage() {
                     </div>
                   </div>
                   <p className="text-[14px] text-[#1F2430]/90 font-medium leading-relaxed mb-4">
-                    "Walk me through how you handled state management in that high-traffic e-commerce project."
+                    "Walk me through how you handled state management in that high-traffic financial application."
                   </p>
                   <div className="p-3 rounded-2xl bg-[#F3F2F0] border border-black/5 flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-sm">
@@ -854,12 +854,12 @@ export function LandingPage() {
           </div>
           
           <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 text-[14px] font-medium text-[#1F2430]/60">
-            <a href="#" className="hover:text-[#1F2430] transition-colors">About</a>
+            <a href="/about" className="hover:text-[#1F2430] transition-colors">About</a>
             <a href="#candidates" className="hover:text-[#1F2430] transition-colors">Candidates</a>
             <a href="#companies" className="hover:text-[#1F2430] transition-colors">Companies</a>
             <a href="#trust" className="hover:text-[#1F2430] transition-colors">Trust</a>
-            <a href="#" className="hover:text-[#1F2430] transition-colors">Pricing</a>
-            <a href="#" className="hover:text-[#1F2430] transition-colors">Contact</a>
+            <a href="/pricing" className="hover:text-[#1F2430] transition-colors">Pricing</a>
+            <a href="/contact" className="hover:text-[#1F2430] transition-colors">Contact</a>
           </div>
           
           <p className="text-[13px] text-[#1F2430]/40 font-medium">© 2026 PlacedOn Inc.</p>

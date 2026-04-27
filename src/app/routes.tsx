@@ -15,6 +15,11 @@ import { AuthPage } from "./components/AuthPage";
 import { ChoosePathScreen } from "./components/ChoosePathScreen";
 import { EmployerInterestScreen } from "./components/EmployerInterestScreen";
 import { FollowUpChallengeScreen } from "./components/FollowUpChallengeScreen";
+import { AboutPage } from "./components/AboutPage";
+import { PricingPage } from "./components/PricingPage";
+import { ContactPage } from "./components/ContactPage";
+import { TermsPage } from "./components/TermsPage";
+import { PrivacyPage } from "./components/PrivacyPage";
 
 export const router = createBrowserRouter([
   {
@@ -82,6 +87,26 @@ export const router = createBrowserRouter([
   {
     path: "/interview",
     Component: InterviewRoom,
+  },
+  {
+    path: "/about",
+    Component: AboutPage,
+  },
+  {
+    path: "/pricing",
+    Component: PricingPage,
+  },
+  {
+    path: "/contact",
+    Component: ContactPage,
+  },
+  {
+    path: "/terms",
+    Component: TermsPage,
+  },
+  {
+    path: "/privacy",
+    Component: PrivacyPage,
   },
   {
     path: "*",

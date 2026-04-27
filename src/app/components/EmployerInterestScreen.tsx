@@ -33,11 +33,11 @@ export function EmployerInterestScreen() {
             <div className="lg:w-[55%]">
               <div className="flex items-center gap-5 mb-8">
                 <div className="w-20 h-20 rounded-2xl bg-white border border-[#1F2430]/10 shadow-sm flex items-center justify-center overflow-hidden shrink-0">
-                  <ImageWithFallback src="https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=200&h=200&fit=crop" alt="Vercel" className="w-12 h-12 object-cover rounded-full" />
+                  <ImageWithFallback src="https://images.unsplash.com/photo-1614680376573-df3480f0c6ff?w=200&h=200&fit=crop" alt="Linear" className="w-12 h-12 object-cover rounded-full" />
                 </div>
                 <div>
                   <h3 className="font-[Manrope,sans-serif] text-[28px] font-bold text-[#1F2430] leading-tight">
-                    Staff Engineer, DX
+                    Senior Frontend Engineer
                   </h3>
                   <div className="flex items-center gap-2 text-[16px] font-bold text-[#1F2430]/70 mt-2">
                     <Building2 className="w-5 h-5" /> Linear
@@ -51,7 +51,7 @@ export function EmployerInterestScreen() {
                   <div className="bg-white/60 p-5 rounded-2xl border border-white shadow-sm relative">
                     <Sparkles className="absolute top-5 right-5 w-5 h-5 text-[#3E63F5]/30" />
                     <p className="text-[15px] text-[#1F2430]/80 font-medium leading-relaxed pr-8">
-                      "We were incredibly impressed by your Next.js App Router and performance profiling signals. We're looking for someone with your exact architectural rigor to help lead our developer experience initiatives."
+                      "We were incredibly impressed by your TypeScript and React expertise, particularly your work on real-time features. Your technical depth in frontend performance optimization is exactly what we're looking for in our high-performance UI team."
                     </p>
                   </div>
                 </div>
