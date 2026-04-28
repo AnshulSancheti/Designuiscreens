@@ -122,225 +122,457 @@ function getTraitPosition(name: string): { x: number; y: number } {
   return { x, y };
 }
 
-type StarPoint = {
-  dim: EvidenceDimension;
-  family: TraitFamily;
-  isGap: boolean;
+type GraphNode = {
+  id: string;
+  kind: "candidate" | "trait" | "evidence";
+  label: string;
+  trait?: EvidenceDimension;
+  family?: TraitFamily;
+  parentId?: string;
+  radius: number;
   x: number;
   y: number;
-  coreSize: number; // 8-12
-  glowRadius: number; // px, scales with score
-  glowOpacity: number; // 0..1, scales with confidence
+  baseX: number;
+  baseY: number;
 };
 
-function buildStars(dims: EvidenceDimension[]): StarPoint[] {
-  return dims.map((d) => {
-    const { x, y } = getTraitPosition(d.dimension);
-    const family = getTraitFamily(d.dimension);
-    const coreSize = 8 + Math.round(Math.max(0, Math.min(1, d.score)) * 4); // 8..12
-    const glowRadius = 28 + Math.round(d.score * 64); // 28..~92
-    const glowOpacity = 0.18 + d.confidence * 0.55; // 0.18..0.73
-    return { dim: d, family, isGap: isGapTrait(d), x, y, coreSize, glowRadius, glowOpacity };
+type GraphEdge = {
+  source: string;
+  target: string;
+  kind: "candidate-trait" | "trait-evidence" | "trait-trait";
+  family?: TraitFamily;
+};
+
+function buildProfileGraph(dimensions: EvidenceDimension[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
+  const nodes: GraphNode[] = [];
+  const edges: GraphEdge[] = [];
+
+  // Circular layout: behavioral on the left semicircle, technical on the right.
+  const behavioralDims = dimensions
+    .filter((d) => getTraitFamily(d.dimension) === "behavioral")
+    .sort((a, b) => a.dimension.localeCompare(b.dimension));
+  const technicalDims = dimensions
+    .filter((d) => getTraitFamily(d.dimension) === "technical")
+    .sort((a, b) => a.dimension.localeCompare(b.dimension));
+  const cx = 50;
+  const cy = 50;
+  const rx = 26;
+  const ry = 28;
+  const positions = new Map<string, { x: number; y: number }>();
+  // Left arc spans from top (-π/2) through left (π) down to bottom (π/2), going counter-clockwise.
+  behavioralDims.forEach((dim, i) => {
+    const t = behavioralDims.length === 1 ? 0.5 : i / (behavioralDims.length - 1);
+    const angle = -Math.PI / 2 - t * Math.PI; // -π/2 → -3π/2 (top → left → bottom)
+    positions.set(dim.dimension, { x: cx + Math.cos(angle) * rx, y: cy + Math.sin(angle) * ry });
   });
+  // Right arc spans from top through right down to bottom, going clockwise.
+  technicalDims.forEach((dim, i) => {
+    const t = technicalDims.length === 1 ? 0.5 : i / (technicalDims.length - 1);
+    const angle = -Math.PI / 2 + t * Math.PI;
+    positions.set(dim.dimension, { x: cx + Math.cos(angle) * rx, y: cy + Math.sin(angle) * ry });
+  });
+  const ordered = [...behavioralDims, ...technicalDims];
+
+  ordered.forEach((dim) => {
+    const family = getTraitFamily(dim.dimension);
+    const pos = positions.get(dim.dimension)!;
+    const isGap = isGapTrait(dim);
+
+    // Trait node radius scales with score, 6-10px
+    const radius = isGap ? 5 : 6 + Math.round(dim.score * 4);
+
+    const traitId = `trait-${dim.dimension.replace(/\s+/g, '-')}`;
+    nodes.push({
+      id: traitId,
+      kind: "trait",
+      label: dim.dimension,
+      trait: dim,
+      family,
+      radius,
+      x: pos.x,
+      y: pos.y,
+      baseX: pos.x,
+      baseY: pos.y,
+    });
+
+  });
+
+  // Add trait-to-trait edges (same family, non-gap, nearest neighbors)
+  const traitNodes = nodes.filter((n) => n.kind === "trait");
+  traitNodes.forEach((traitA) => {
+    if (!traitA.trait || isGapTrait(traitA.trait)) return;
+
+    const candidates = traitNodes
+      .filter((traitB) =>
+        traitB.id !== traitA.id &&
+        traitB.trait &&
+        !isGapTrait(traitB.trait) &&
+        traitB.family === traitA.family
+      )
+      .map((traitB) => ({
+        node: traitB,
+        distance: Math.hypot(traitB.x - traitA.x, traitB.y - traitA.y),
+      }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 2);
+
+    candidates.forEach(({ node }) => {
+      const edgeKey = [traitA.id, node.id].sort().join('-');
+      if (!edges.find((e) => [e.source, e.target].sort().join('-') === edgeKey)) {
+        edges.push({
+          source: traitA.id,
+          target: node.id,
+          kind: "trait-trait",
+          family: traitA.family,
+        });
+      }
+    });
+  });
+
+  return { nodes, edges };
 }
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
-function relaxStarLayout(
-  stars: StarPoint[],
-  edges: Array<{ a: number; b: number; family: TraitFamily }>
-): StarPoint[] {
-  const nodes = stars.map((s) => ({
-    ...s,
-    x: s.x,
-    y: s.y,
-    baseX: s.x,
-    baseY: s.y,
-  }));
-
-  const minDistance = 13;
-  const edgeLength = 24;
-  const iterations = 90;
+function relaxGraphLayout(nodes: GraphNode[], edges: GraphEdge[]): GraphNode[] {
+  const out = nodes.map((n) => ({ ...n }));
+  const byId = new Map(out.map((n, i) => [n.id, i]));
+  const iterations = 120;
 
   for (let step = 0; step < iterations; step++) {
-    const forces = nodes.map(() => ({ x: 0, y: 0 }));
+    const force = out.map(() => ({ x: 0, y: 0 }));
 
-    for (let i = 0; i < nodes.length; i++) {
-      for (let j = i + 1; j < nodes.length; j++) {
-        const a = nodes[i];
-        const b = nodes[j];
+    // All-pairs repulsion (no overlaps)
+    for (let i = 0; i < out.length; i++) {
+      for (let j = i + 1; j < out.length; j++) {
+        const a = out[i];
+        const b = out[j];
         let dx = b.x - a.x;
         let dy = b.y - a.y;
-        let d = Math.hypot(dx, dy);
-        if (d < 0.001) {
-          dx = 0.01;
-          dy = 0.01;
-          d = 0.014;
-        }
-        if (d < minDistance) {
-          const push = (minDistance - d) * 0.045;
+        let d = Math.max(0.01, Math.hypot(dx, dy));
+        const minDist = a.radius + b.radius + 3;
+
+        if (d < minDist) {
+          const push = (minDist - d) * 0.04;
           const nx = dx / d;
           const ny = dy / d;
-          forces[i].x -= nx * push;
-          forces[i].y -= ny * push;
-          forces[j].x += nx * push;
-          forces[j].y += ny * push;
+          force[i].x -= nx * push;
+          force[i].y -= ny * push;
+          force[j].x += nx * push;
+          force[j].y += ny * push;
         }
       }
     }
 
+    // Edge spring forces pull connected nodes
     edges.forEach((edge) => {
-      const a = nodes[edge.a];
-      const b = nodes[edge.b];
+      const aIndex = byId.get(edge.source);
+      const bIndex = byId.get(edge.target);
+      if (aIndex == null || bIndex == null) return;
+
+      const a = out[aIndex];
+      const b = out[bIndex];
+      const desired = edge.kind === "trait-evidence" ? 9 : edge.kind === "candidate-trait" ? 28 : 24;
       const dx = b.x - a.x;
       const dy = b.y - a.y;
-      const d = Math.max(0.001, Math.hypot(dx, dy));
-      const pull = (d - edgeLength) * 0.008;
+      const d = Math.max(0.01, Math.hypot(dx, dy));
+      const strength = edge.kind === "candidate-trait" ? 0.003 : 0.012;
+      const pull = (d - desired) * strength;
       const nx = dx / d;
       const ny = dy / d;
-      forces[edge.a].x += nx * pull;
-      forces[edge.a].y += ny * pull;
-      forces[edge.b].x -= nx * pull;
-      forces[edge.b].y -= ny * pull;
+
+      if (a.kind !== "candidate") {
+        force[aIndex].x += nx * pull;
+        force[aIndex].y += ny * pull;
+      }
+      if (b.kind !== "candidate") {
+        force[bIndex].x -= nx * pull;
+        force[bIndex].y -= ny * pull;
+      }
     });
 
-    nodes.forEach((node, i) => {
-      forces[i].x += (node.baseX - node.x) * 0.012;
-      forces[i].y += (node.baseY - node.y) * 0.012;
-      const familyAnchorX = node.family === "technical" ? 61 : 39;
-      forces[i].x += (familyAnchorX - node.x) * 0.002;
-    });
+    // Apply forces with bounds
+    out.forEach((n, i) => {
+      // Candidate stays near center
+      if (n.kind === "candidate") {
+        force[i].x += (50 - n.x) * 0.08;
+        force[i].y += (50 - n.y) * 0.08;
+      }
 
-    nodes.forEach((node, i) => {
-      node.x = clamp(node.x + forces[i].x, 8, 92);
-      node.y = clamp(node.y + forces[i].y, 12, 86);
+      // Anchor to base position (organic drift from curated spots)
+      if (n.kind === "trait") {
+        force[i].x += (n.baseX - n.x) * 0.01;
+        force[i].y += (n.baseY - n.y) * 0.01;
+
+        // Family clustering
+        if (n.family) {
+          const familyAnchorX = n.family === "technical" ? 61 : 39;
+          force[i].x += (familyAnchorX - n.x) * 0.002;
+        }
+      }
+
+      // Evidence nodes anchor to their parent
+      if (n.kind === "evidence") {
+        force[i].x += (n.baseX - n.x) * 0.02;
+        force[i].y += (n.baseY - n.y) * 0.02;
+      }
+
+      // Apply force and clamp to bounds
+      n.x = Math.max(7, Math.min(93, n.x + force[i].x));
+      n.y = Math.max(10, Math.min(88, n.y + force[i].y));
     });
   }
 
-  return nodes.map(({ baseX: _bx, baseY: _by, ...rest }) => rest);
-}
-
-// Pick 1–2 nearest same-family non-gap neighbors per non-gap star (no full mesh).
-function buildEdges(stars: StarPoint[]): Array<{ a: number; b: number; family: TraitFamily }> {
-  const edges = new Set<string>();
-  const out: Array<{ a: number; b: number; family: TraitFamily }> = [];
-  stars.forEach((s, i) => {
-    if (s.isGap) return;
-    const candidates = stars
-      .map((other, j) => ({ j, other }))
-      .filter(({ j, other }) => j !== i && !other.isGap && other.family === s.family)
-      .map(({ j, other }) => ({
-        j,
-        d: Math.hypot(other.x - s.x, other.y - s.y),
-      }))
-      .sort((a, b) => a.d - b.d)
-      .slice(0, 2);
-    candidates.forEach(({ j }) => {
-      const key = i < j ? `${i}-${j}` : `${j}-${i}`;
-      if (!edges.has(key)) {
-        edges.add(key);
-        out.push({ a: Math.min(i, j), b: Math.max(i, j), family: s.family });
-      }
-    });
-  });
   return out;
 }
 
-function ConstellationStar({
-  star,
+// ---------- Deterministic label placement (Obsidian-style annotations) ----------
+type LabelPlacement = "bottom" | "top" | "right" | "left" | "bottom-right" | "bottom-left" | "top-right" | "top-left";
+
+type PlacedLabel = {
+  id: string;
+  placement: LabelPlacement;
+  box: { x: number; y: number; w: number; h: number };
+  anchor: "middle" | "start" | "end";
+  clean: boolean;
+};
+
+const LABEL_PLACEMENTS: Array<{
+  placement: LabelPlacement;
+  dx: number;
+  dy: number;
+  anchor: "middle" | "start" | "end";
+}> = [
+  { placement: "bottom", dx: 0, dy: 20, anchor: "middle" },
+];
+
+function boxesOverlap(a: PlacedLabel["box"], b: PlacedLabel["box"]) {
+  return !(a.x + a.w < b.x || b.x + b.w < a.x || a.y + a.h < b.y || b.y + b.h < a.y);
+}
+
+function estimateLabelWidth(label: string) {
+  // Width is in percent units of the sky region; tuned for compact annotations
+  return Math.min(38, Math.max(14, label.length * 1.7));
+}
+
+function placeGraphLabels(nodes: GraphNode[]): Map<string, PlacedLabel> {
+  const placed: PlacedLabel[] = [];
+  const traitNodes = nodes
+    .filter((n) => n.kind === "trait")
+    .sort((a, b) => (b.trait?.score ?? 1) - (a.trait?.score ?? 1));
+
+  // Bounding boxes for all trait blobs (so labels never sit on top of any blob).
+  // Trait radii are in px; convert to a % footprint with a small buffer.
+  const blobBoxes = traitNodes.map((n) => {
+    const rPct = (n.radius + 2) / 4.2;
+    return { x: n.x - rPct, y: n.y - rPct, w: rPct * 2, h: rPct * 2 };
+  });
+
+  for (const node of traitNodes) {
+    const w = estimateLabelWidth(node.label);
+    const h = 4; // % height for a single line of 11px text
+    let chosen: PlacedLabel | null = null;
+
+    for (const option of LABEL_PLACEMENTS) {
+      const box = {
+        x: node.x + option.dx * 0.18 - (option.anchor === "middle" ? w / 2 : option.anchor === "end" ? w : 0),
+        y: node.y + option.dy * 0.22 - h / 2,
+        w,
+        h,
+      };
+      const insideBounds = box.x >= 1 && box.y >= 2 && box.x + box.w <= 99 && box.y + box.h <= 96;
+      const collidesWithLabel = placed.some((p) => boxesOverlap(box, p.box));
+      const collidesWithBlob = blobBoxes.some((b) => boxesOverlap(box, b));
+      if (insideBounds && !collidesWithLabel && !collidesWithBlob) {
+        chosen = { id: node.id, placement: option.placement, box, anchor: option.anchor, clean: true };
+        break;
+      }
+    }
+
+    if (!chosen) {
+      chosen = {
+        id: node.id,
+        placement: "bottom",
+        box: {
+          x: Math.max(1, Math.min(99 - w, node.x - w / 2)),
+          y: Math.max(2, Math.min(96 - h, node.y + 4)),
+          w,
+          h,
+        },
+        anchor: "middle",
+        clean: false,
+      };
+    }
+    placed.push(chosen);
+  }
+
+  return new Map(placed.map((p) => [p.id, p]));
+}
+
+function GraphNodeComponent({
+  node,
   selected,
   hovered,
+  inNeighborhood,
+  faded,
   onHover,
   onLeave,
   onSelect,
   offset,
 }: {
-  star: StarPoint;
+  node: GraphNode;
   selected: boolean;
   hovered: boolean;
+  inNeighborhood: boolean;
+  faded: boolean;
   onHover: () => void;
   onLeave: () => void;
   onSelect: () => void;
   offset: { x: number; y: number };
 }) {
   const reduceMotion = useReducedMotion();
-  const color = star.family === "technical" ? TECH_COLOR : WARM_COLOR;
-  const haloOpacity = selected ? Math.min(1, star.glowOpacity + 0.25) : star.glowOpacity;
-  const haloSize = selected ? star.glowRadius + 18 : star.glowRadius;
+
+  // Candidate node (center) - non-interactive
+  if (node.kind === "candidate") {
+    return (
+      <div
+        style={{
+          left: `${node.x}%`,
+          top: `${node.y}%`,
+        }}
+        className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+      >
+        <div
+          className="rounded-full bg-white border-2 border-[#1F2430]/15 flex items-center justify-center font-[Manrope,sans-serif] font-extrabold text-[#1F2430] text-[9px]"
+          style={{ width: node.radius * 2, height: node.radius * 2 }}
+        >
+          {node.label}
+        </div>
+      </div>
+    );
+  }
+
+  // Evidence node (small gray dots) - clickable, selects parent
+  if (node.kind === "evidence") {
+    const isActive = selected || hovered || inNeighborhood;
+    const dotOpacity = faded ? 0.15 : isActive ? 0.7 : 0.4;
+    const dotColor = isActive ? "#6B7280" : "#9CA3AF";
+
+    return (
+      <motion.button
+        type="button"
+        style={{
+          left: `${node.x}%`,
+          top: `${node.y}%`,
+          width: 44,
+          height: 44,
+        }}
+        className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full flex items-center justify-center pointer-events-auto touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#3E63F5]/40"
+        animate={{ x: offset.x, y: offset.y, opacity: dotOpacity }}
+        transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 150, damping: 20, mass: 0.35, opacity: { duration: 0.25 } }}
+        onPointerEnter={onHover}
+        onPointerLeave={onLeave}
+        onFocus={onHover}
+        onBlur={onLeave}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect();
+        }}
+        aria-label="Evidence node, click to view parent trait"
+      >
+        <div
+          className="rounded-full pointer-events-none"
+          style={{
+            width: node.radius * 2,
+            height: node.radius * 2,
+            background: dotColor,
+            boxShadow: isActive ? `0 0 4px ${dotColor}` : 'none',
+          }}
+        />
+      </motion.button>
+    );
+  }
+
+  // Trait node
+  const trait = node.trait!;
+  const family = node.family!;
+  const isGap = isGapTrait(trait);
+  const color = family === "technical" ? TECH_COLOR : WARM_COLOR;
+  const isActive = selected || hovered;
+
+  // Brightness scales with score, base opacity with confidence
+  const brightness = 0.6 + trait.score * 0.4; // 0.6..1.0
+  const baseOpacity = trait.confidence;
+  const nodeOpacity = faded ? Math.min(baseOpacity, 0.25) : inNeighborhood ? baseOpacity : baseOpacity;
+
+  // Glow for active nodes
+  const glowRadius = node.radius * 2 + (isActive ? 16 : 10);
+  const glowOpacity = isActive ? 0.45 : inNeighborhood ? 0.2 : 0.1;
 
   return (
     <motion.button
       type="button"
       style={{
-        left: `${star.x}%`,
-        top: `${star.y}%`,
-        width: 52,
-        height: 52,
+        left: `${node.x}%`,
+        top: `${node.y}%`,
+        width: 44,
+        height: 44,
       }}
-      className="absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center rounded-full pointer-events-auto touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#3E63F5]/40"
-      animate={{ x: offset.x, y: offset.y }}
-      transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 150, damping: 20, mass: 0.35 }}
+      className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full flex items-center justify-center pointer-events-auto touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#3E63F5]/40"
+      animate={{ x: offset.x, y: offset.y, opacity: nodeOpacity }}
+      transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 150, damping: 20, mass: 0.35, opacity: { duration: 0.25 } }}
       onPointerEnter={onHover}
       onPointerLeave={onLeave}
       onFocus={onHover}
       onBlur={onLeave}
-      onPointerDown={(e) => {
-        e.stopPropagation();
-      }}
+      onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => {
         e.stopPropagation();
         onSelect();
       }}
-      aria-label={`${star.dim.dimension}, ${getSignalBand(star.dim.score).toLowerCase()} signal, ${getConfidenceBand(star.dim.confidence).toLowerCase()} confidence. Open trait details.`}
+      aria-label={`${trait.dimension}, ${getSignalBand(trait.score).toLowerCase()} signal, ${getConfidenceBand(trait.confidence).toLowerCase()} confidence. Open trait details.`}
       aria-pressed={selected}
     >
-      {/* Halo: radius = score, opacity = confidence */}
+      {/* Glow halo */}
       <span
         aria-hidden
         className="absolute rounded-full pointer-events-none transition-all duration-300"
         style={{
-          width: haloSize,
-          height: haloSize,
-          opacity: haloOpacity,
-          background: `radial-gradient(circle, ${color} 0%, transparent 65%)`,
-          filter: selected ? "saturate(1.15)" : undefined,
+          width: glowRadius,
+          height: glowRadius,
+          opacity: glowOpacity,
+          background: `radial-gradient(circle, ${color} 0%, transparent 70%)`,
         }}
       />
-      {/* Core */}
-      {star.isGap ? (
+      {/* Core node */}
+      {isGap ? (
         <span
-          className="relative rounded-full bg-[#FFFCF6] pointer-events-none"
+          className="relative rounded-full bg-[#FFFCF6] pointer-events-none transition-all duration-300"
           style={{
-            width: star.coreSize,
-            height: star.coreSize,
-            border: `1.5px dashed ${color}`,
+            width: node.radius * 2,
+            height: node.radius * 2,
+            border: `1.5px dashed #9CA3AF`,
+            filter: `brightness(${brightness})`,
+            boxShadow: isActive ? `0 0 12px #9CA3AF` : 'none',
           }}
         />
       ) : (
         <motion.span
-          className="relative rounded-full pointer-events-none"
+          className="relative rounded-full pointer-events-none transition-all duration-300"
           style={{
-            width: star.coreSize,
-            height: star.coreSize,
+            width: node.radius * 2,
+            height: node.radius * 2,
             background: color,
-            boxShadow: selected ? `0 0 14px ${color}` : `0 0 6px ${color}`,
+            filter: `brightness(${brightness})`,
+            boxShadow: isActive ? `0 0 12px ${color}` : `0 0 4px ${color}`,
           }}
-          animate={reduceMotion ? { opacity: 1 } : { opacity: selected ? 1 : [0.9, 1, 0.9] }}
-          transition={reduceMotion ? { duration: 0 } : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+          animate={reduceMotion ? { opacity: 1 } : { opacity: isActive ? 1 : [0.85, 1, 0.85] }}
+          transition={reduceMotion ? { duration: 0 } : { duration: 3, repeat: Infinity, ease: "easeInOut" }}
         />
       )}
-      {/* Label under star */}
-      <span
-        className={`absolute top-[44px] left-1/2 -translate-x-1/2 whitespace-nowrap text-[11px] font-bold pointer-events-none transition-opacity ${
-          selected || hovered
-            ? "opacity-90 text-[#1F2430]"
-            : "opacity-45 text-[#1F2430]/80"
-        }`}
-      >
-        {star.dim.dimension}
-      </span>
     </motion.button>
   );
 }
@@ -352,51 +584,167 @@ interface ProfileConstellationProps {
 }
 
 function ProfileConstellation({ dimensions, selectedTrait, onSelectTrait }: ProfileConstellationProps) {
-  const rawStars = useMemo(() => buildStars(dimensions), [dimensions]);
-  const rawEdges = useMemo(() => buildEdges(rawStars), [rawStars]);
-  const stars = useMemo(() => relaxStarLayout(rawStars, rawEdges), [rawStars, rawEdges]);
+  const { nodes: rawNodes, edges: rawEdges } = useMemo(() => buildProfileGraph(dimensions), [dimensions]);
+  const nodes = useMemo(() => relaxGraphLayout(rawNodes, rawEdges), [rawNodes, rawEdges]);
   const edges = rawEdges;
-  const selectedIdx = selectedTrait
-    ? stars.findIndex((s) => s.dim.dimension === selectedTrait.dimension)
-    : -1;
+  const labelMap = useMemo(() => placeGraphLabels(nodes), [nodes]);
+
+  // Auto-center: shift the graph so the trait-node bounding box is centered
+  // inside the sky region (so left/right gaps and top/bottom gaps match).
+  const centerOffset = useMemo(() => {
+    const traits = nodes.filter((n) => n.kind === "trait");
+    if (traits.length === 0) return { x: 0, y: 0 };
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const n of traits) {
+      const r = n.radius / 4.2; // approx px→% footprint
+      if (n.x - r < minX) minX = n.x - r;
+      if (n.x + r > maxX) maxX = n.x + r;
+      if (n.y - r < minY) minY = n.y - r;
+      if (n.y + r > maxY) maxY = n.y + r;
+    }
+    return { x: 50 - (minX + maxX) / 2, y: 50 - (minY + maxY) / 2 };
+  }, [nodes]);
+
+  const selectedNodeId = selectedTrait
+    ? `trait-${selectedTrait.dimension.replace(/\s+/g, '-')}`
+    : null;
+
   const reduceMotion = useReducedMotion();
   const skyRef = useRef<HTMLDivElement | null>(null);
   const [pointer, setPointer] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
-  const [hoveredTrait, setHoveredTrait] = useState<string | null>(null);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [interactive, setInteractive] = useState(false);
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartRef = useRef<{ x: number; y: number; pan: { x: number; y: number } } | null>(null);
+  const ZOOM_MIN = 0.55;
+  const ZOOM_MAX = 2.5;
+  const clampZoom = (z: number) => Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
 
-  function getStarOffset(star: StarPoint, idx: number): { x: number; y: number } {
+  // Attach a non-passive wheel listener so we can preventDefault when interactive.
+  useEffect(() => {
+    const el = skyRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      if (!interactive) return;
+      e.preventDefault();
+      const delta = -e.deltaY * 0.0015;
+      setZoom((z) => clampZoom(z + delta * z));
+    };
+    el.addEventListener("wheel", handler, { passive: false });
+    return () => el.removeEventListener("wheel", handler);
+  }, [interactive]);
+
+  // When leaving interactive mode, smoothly revert to the centered default view.
+  useEffect(() => {
+    if (!interactive) {
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+    }
+  }, [interactive]);
+
+  // Click outside or Escape exits interactive mode.
+  useEffect(() => {
+    if (!interactive) return;
+    const onDown = (e: MouseEvent) => {
+      if (skyRef.current && !skyRef.current.contains(e.target as Node)) setInteractive(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setInteractive(false);
+    };
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [interactive]);
+
+  // Label LOD: rank traits by score so strongest reveal first.
+  const labelThresholds = useMemo(() => {
+    const traits = nodes.filter((n) => n.kind === "trait");
+    const ranked = [...traits].sort((a, b) => (b.trait?.score ?? 0) - (a.trait?.score ?? 0));
+    const N = Math.max(1, ranked.length - 1);
+    const map = new Map<string, number>();
+    ranked.forEach((n, i) => {
+      // strongest visible at 0.65, weakest at ~1.55
+      map.set(n.id, 0.65 + (i / N) * 0.9);
+    });
+    return map;
+  }, [nodes]);
+
+  // Build a node map for quick lookup
+  const nodeById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
+
+  // Helper to find parent trait for evidence nodes
+  const findParentTrait = (node: GraphNode): EvidenceDimension | null => {
+    if (node.kind === "trait") return node.trait ?? null;
+    if (node.kind === "evidence" && node.parentId) {
+      const parent = nodeById.get(node.parentId);
+      return parent?.trait ?? null;
+    }
+    return null;
+  };
+
+  // Determine which nodes are in the active neighborhood (selected OR hovered)
+  const activeNodeId = selectedNodeId ?? hoveredNodeId;
+  const neighborhood = useMemo(() => {
+    const inNeighborhood = new Set<string>();
+    if (activeNodeId) {
+      inNeighborhood.add(activeNodeId);
+      // Add all connected nodes
+      edges.forEach((edge) => {
+        if (edge.source === activeNodeId) inNeighborhood.add(edge.target);
+        if (edge.target === activeNodeId) inNeighborhood.add(edge.source);
+      });
+    }
+    return inNeighborhood;
+  }, [activeNodeId, edges]);
+
+  function getNodeOffset(node: GraphNode): { x: number; y: number } {
+    // Freeze hovered, selected, or candidate nodes
     if (
       reduceMotion ||
       !pointer ||
-      idx === selectedIdx ||
-      hoveredTrait === star.dim.dimension
+      node.kind === "candidate" ||
+      node.id === selectedNodeId ||
+      node.id === hoveredNodeId
     ) {
       return { x: 0, y: 0 };
     }
-    const starPx = (star.x / 100) * pointer.w;
-    const starPy = (star.y / 100) * pointer.h;
-    const dx = starPx - pointer.x;
-    const dy = starPy - pointer.y;
+
+    const nodePx = (node.x / 100) * pointer.w;
+    const nodePy = (node.y / 100) * pointer.h;
+    const dx = nodePx - pointer.x;
+    const dy = nodePy - pointer.y;
     const distance = Math.hypot(dx, dy);
-    const RADIUS = 140;
+    const RADIUS = 120;
+
     if (distance >= RADIUS || distance < 0.5) return { x: 0, y: 0 };
-    const force = (1 - distance / RADIUS) * 14;
-    const gapBoost = star.isGap ? 1.2 : 1;
-    const confidenceDamp = 1 / Math.max(0.45, star.dim.confidence);
-    const magnitude = force * gapBoost * confidenceDamp;
-    return { x: (dx / distance) * magnitude, y: (dy / distance) * magnitude };
+
+    // Subtle repel, max 8-10px movement
+    const force = (1 - distance / RADIUS) * 8;
+    const isGap = node.trait && isGapTrait(node.trait);
+    const gapBoost = isGap ? 1.1 : 1;
+    const magnitude = force * gapBoost;
+
+    return {
+      x: clamp((dx / distance) * magnitude, -10, 10),
+      y: clamp((dy / distance) * magnitude, -10, 10),
+    };
   }
 
   // Sparse background dots — deterministic so no layout shift
   const bgDots = useMemo(() => {
     const out: Array<{ x: number; y: number; r: number }> = [];
     let h = 7;
-    for (let i = 0; i < 22; i++) {
+    for (let i = 0; i < 30; i++) {
       h = (h * 1103515245 + 12345) & 0x7fffffff;
       out.push({
         x: (h % 1000) / 10,
         y: ((h >> 7) % 1000) / 10,
-        r: 0.6 + ((h >> 13) % 10) / 18,
+        r: 0.4 + ((h >> 13) % 10) / 20,
       });
     }
     return out;
@@ -404,7 +752,7 @@ function ProfileConstellation({ dimensions, selectedTrait, onSelectTrait }: Prof
 
   return (
     <section
-      aria-label="Your evidence constellation"
+      aria-label="Your evidence graph"
       className="relative w-full rounded-[1.75rem] overflow-hidden"
       style={{
         background: "#F3F2F0",
@@ -420,17 +768,43 @@ function ProfileConstellation({ dimensions, selectedTrait, onSelectTrait }: Prof
           <Sparkles className="w-3.5 h-3.5" /> Profile
         </div>
         <h2 className="font-[Manrope,sans-serif] text-[22px] sm:text-[26px] font-extrabold text-[#1F2430] tracking-tight mt-1.5 leading-tight">
-          Your Evidence Constellation
+          Your Evidence Graph
         </h2>
         <p className="text-[13px] sm:text-[14px] text-[#1F2430]/60 font-medium mt-1.5 max-w-2xl leading-relaxed">
-          Every star is a trait PlacedOn inferred from observed interview behavior.
+          Each node is a trait inferred from interview behavior. Small dots show supporting evidence.
         </p>
       </div>
 
       {/* Sky region */}
       <div
         ref={skyRef}
+        onPointerLeave={() => setPointer(null)}
+        onMouseDown={(e) => {
+          if (e.button === 0 && !interactive) {
+            // Activate interactive mode on left click; don't toggle off here so the
+            // global outside-click handler can manage deactivation.
+            setInteractive(true);
+          }
+        }}
+        onContextMenu={(e) => {
+          // Suppress browser context menu so right-click can be used for panning.
+          e.preventDefault();
+        }}
+        onPointerDown={(e) => {
+          if (e.button === 2) {
+            e.preventDefault();
+            (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+            panStartRef.current = { x: e.clientX, y: e.clientY, pan: { ...pan } };
+            setIsPanning(true);
+          }
+        }}
         onPointerMove={(e) => {
+          if (isPanning && panStartRef.current) {
+            const dx = e.clientX - panStartRef.current.x;
+            const dy = e.clientY - panStartRef.current.y;
+            setPan({ x: panStartRef.current.pan.x + dx, y: panStartRef.current.pan.y + dy });
+            return;
+          }
           if (reduceMotion) return;
           const rect = e.currentTarget.getBoundingClientRect();
           setPointer({
@@ -440,68 +814,179 @@ function ProfileConstellation({ dimensions, selectedTrait, onSelectTrait }: Prof
             h: rect.height,
           });
         }}
-        onPointerLeave={() => setPointer(null)}
-        className="absolute inset-0 top-[120px] sm:top-[128px] bottom-[88px] sm:bottom-[72px]"
+        onPointerUp={(e) => {
+          if (isPanning) {
+            setIsPanning(false);
+            panStartRef.current = null;
+            try { (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId); } catch {}
+          }
+        }}
+        onPointerCancel={() => {
+          if (isPanning) {
+            setIsPanning(false);
+            panStartRef.current = null;
+          }
+        }}
+        className={`absolute inset-0 top-[120px] sm:top-[128px] bottom-[88px] sm:bottom-[72px] overflow-hidden transition-shadow ${
+          interactive ? "ring-2 ring-[#3E63F5]/30 ring-inset" : ""
+        } ${isPanning ? "cursor-grabbing" : interactive ? "cursor-grab" : "cursor-pointer"}`}
       >
+        <div
+          className="absolute inset-0"
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) translate(${centerOffset.x}%, ${centerOffset.y}%) scale(${zoom})`,
+            transformOrigin: "50% 50%",
+            transition: reduceMotion || isPanning ? "none" : "transform 450ms cubic-bezier(0.22, 1, 0.36, 1)",
+          }}
+        >
         {/* Sparse background dots */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none" aria-hidden>
           {bgDots.map((d, i) => (
-            <circle key={i} cx={`${d.x}%`} cy={`${d.y}%`} r={d.r} fill="#1F2430" fillOpacity={0.06} />
+            <circle key={i} cx={`${d.x}%`} cy={`${d.y}%`} r={d.r} fill="#1F2430" fillOpacity={0.04} />
           ))}
 
-          {/* Connection lines (behind stars) */}
-          {edges.map((e, i) => {
-            const a = stars[e.a];
-            const b = stars[e.b];
-            const isHot = selectedIdx === e.a || selectedIdx === e.b;
-            const stroke = e.family === "technical" ? TECH_COLOR : WARM_COLOR;
+          {/* Graph edges */}
+          {edges.map((edge, i) => {
+            const sourceNode = nodes.find((n) => n.id === edge.source);
+            const targetNode = nodes.find((n) => n.id === edge.target);
+            if (!sourceNode || !targetNode) return null;
+
+            // Edge is "hot" if either endpoint is selected/hovered
+            const isHot = activeNodeId && (edge.source === activeNodeId || edge.target === activeNodeId);
+            const isCandidateEdge = edge.kind === "candidate-trait";
+            const isEvidenceEdge = edge.kind === "trait-evidence";
+            const isTraitEdge = edge.kind === "trait-trait";
+
+            let stroke = "#9CA3AF"; // neutral gray default
+            if (isTraitEdge && edge.family) {
+              stroke = edge.family === "technical" ? TECH_COLOR : WARM_COLOR;
+            } else if (isEvidenceEdge) {
+              const parentNode = sourceNode.kind === "trait" ? sourceNode : targetNode;
+              stroke = parentNode.family === "technical" ? TECH_COLOR : WARM_COLOR;
+            }
+
+            const strokeWidth = isCandidateEdge ? 0.3 : isEvidenceEdge ? 0.5 : 0.6;
+            const strokeOpacity = isCandidateEdge
+              ? 0.03
+              : isEvidenceEdge
+              ? (isHot ? 0.35 : 0.06)
+              : (isHot ? 0.4 : 0.1);
+
             return (
               <line
-                key={i}
-                x1={`${a.x}%`}
-                y1={`${a.y}%`}
-                x2={`${b.x}%`}
-                y2={`${b.y}%`}
+                key={`edge-${i}`}
+                x1={`${sourceNode.x}%`}
+                y1={`${sourceNode.y}%`}
+                x2={`${targetNode.x}%`}
+                y2={`${targetNode.y}%`}
                 stroke={stroke}
-                strokeWidth={isHot ? 1.2 : 1}
-                strokeOpacity={isHot ? 0.45 : 0.12}
-                style={{ transition: "stroke-opacity 200ms ease" }}
+                strokeWidth={strokeWidth}
+                strokeOpacity={strokeOpacity}
+                style={{ transition: "stroke-opacity 250ms ease, stroke-width 250ms ease" }}
               />
             );
           })}
         </svg>
 
-        {stars.map((s, i) => (
-          <ConstellationStar
-            key={s.dim.dimension}
-            star={s}
-            selected={i === selectedIdx}
-            hovered={hoveredTrait === s.dim.dimension}
-            offset={getStarOffset(s, i)}
-            onHover={() => setHoveredTrait(s.dim.dimension)}
-            onLeave={() => setHoveredTrait(null)}
-            onSelect={() => onSelectTrait(s.dim)}
-          />
-        ))}
+        {/* Render all nodes */}
+        {nodes.map((node) => {
+          const selected = node.id === selectedNodeId;
+          const hovered = node.id === hoveredNodeId;
+          const inNeighborhood = neighborhood.has(node.id);
+          const faded = activeNodeId ? !inNeighborhood : false;
+
+          return (
+            <GraphNodeComponent
+              key={node.id}
+              node={node}
+              selected={selected}
+              hovered={hovered}
+              inNeighborhood={inNeighborhood}
+              faded={faded}
+              offset={getNodeOffset(node)}
+              onHover={() => setHoveredNodeId(node.id)}
+              onLeave={() => setHoveredNodeId(null)}
+              onSelect={() => {
+                const trait = findParentTrait(node);
+                if (trait) {
+                  onSelectTrait(trait);
+                }
+              }}
+            />
+          );
+        })}
+
+        {/* Trait label layer — annotations anchored to nodes */}
+        {nodes.map((node) => {
+          if (node.kind !== "trait") return null;
+          const placement = labelMap.get(node.id);
+          if (!placement) return null;
+          const selected = node.id === selectedNodeId;
+          const hovered = node.id === hoveredNodeId;
+          const inNeighborhood = neighborhood.has(node.id);
+          const isActive = selected || hovered;
+          const faded = activeNodeId ? !inNeighborhood : false;
+          // If the label has a clean (collision-free) placement, always show it.
+          // Otherwise apply Google-Maps-style LOD: stronger traits reveal first as you zoom in.
+          const threshold = labelThresholds.get(node.id) ?? 1;
+          const lodOpacity = isActive || placement.clean
+            ? 1
+            : Math.max(0, Math.min(1, (zoom - (threshold - 0.18)) / 0.32));
+          if (lodOpacity <= 0.01 && !isActive) return null;
+          const baseAlpha = isActive ? 1 : faded ? 0.4 : 0.7;
+          const finalOpacity = baseAlpha * lodOpacity;
+          const justify =
+            placement.anchor === "middle" ? "center" : placement.anchor === "end" ? "flex-end" : "flex-start";
+          // Counter-scale text so labels stay readable as the graph zooms.
+          const counterScale = 1 / zoom;
+          const transformOrigin =
+            placement.anchor === "end" ? "100% 50%" : placement.anchor === "start" ? "0% 50%" : "50% 50%";
+          return (
+            <div
+              key={`label-${node.id}`}
+              className="absolute pointer-events-none flex"
+              style={{
+                left: `${placement.box.x}%`,
+                top: `${placement.box.y}%`,
+                width: `${placement.box.w}%`,
+                justifyContent: justify,
+                opacity: finalOpacity,
+                transition: "opacity 180ms ease",
+                color: "#1F2430",
+              }}
+            >
+              <span
+                className="whitespace-nowrap overflow-hidden text-ellipsis text-[11px] font-bold leading-none"
+                style={{
+                  textShadow: "0 1px 4px rgba(255,252,246,0.95), 0 0 6px rgba(255,252,246,0.85)",
+                  maxWidth: "100%",
+                  transform: `scale(${counterScale})`,
+                  transformOrigin,
+                }}
+              >
+                {node.label}
+              </span>
+            </div>
+          );
+        })}
+        </div>
+
+        {/* Zoom controls */}
       </div>
 
       {/* Legend */}
       <div className="absolute left-0 right-0 bottom-0 px-6 sm:px-8 py-4 flex flex-wrap items-center gap-x-5 gap-y-2 z-10 bg-gradient-to-t from-[#F3F2F0] via-[#F3F2F0]/90 to-transparent">
         <div className="flex items-center gap-2 text-[11px] sm:text-[12px] font-bold text-[#1F2430]/70">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: WARM_COLOR }} /> Gold = behavioral
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: WARM_COLOR }} /> Gold = behavioral
         </div>
         <div className="flex items-center gap-2 text-[11px] sm:text-[12px] font-bold text-[#1F2430]/70">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: TECH_COLOR }} /> Blue = technical
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: TECH_COLOR }} /> Blue = technical
         </div>
         <div className="flex items-center gap-2 text-[11px] sm:text-[12px] font-bold text-[#1F2430]/70">
-          <span
-            className="w-3 h-3 rounded-full"
-            style={{ background: `radial-gradient(circle, ${TECH_COLOR} 0%, transparent 70%)` }}
-          />
-          Glow = signal strength
+          <span className="w-1.5 h-1.5 rounded-full bg-[#9CA3AF]" /> Gray = insufficient evidence
         </div>
         <div className="flex items-center gap-2 text-[11px] sm:text-[12px] font-bold text-[#1F2430]/70">
-          <span className="w-2.5 h-2.5 rounded-full border-[1.5px] border-dashed border-[#1F2430]/40 bg-[#FFFCF6]" /> Dotted = needs more evidence
+          {interactive ? "Scroll to zoom · Right-click to pan" : "Click to interact"}
         </div>
       </div>
     </section>
