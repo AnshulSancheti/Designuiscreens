@@ -144,6 +144,84 @@ function buildStars(dims: EvidenceDimension[]): StarPoint[] {
   });
 }
 
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function relaxStarLayout(
+  stars: StarPoint[],
+  edges: Array<{ a: number; b: number; family: TraitFamily }>
+): StarPoint[] {
+  const nodes = stars.map((s) => ({
+    ...s,
+    x: s.x,
+    y: s.y,
+    baseX: s.x,
+    baseY: s.y,
+  }));
+
+  const minDistance = 13;
+  const edgeLength = 24;
+  const iterations = 90;
+
+  for (let step = 0; step < iterations; step++) {
+    const forces = nodes.map(() => ({ x: 0, y: 0 }));
+
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i];
+        const b = nodes[j];
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+        let d = Math.hypot(dx, dy);
+        if (d < 0.001) {
+          dx = 0.01;
+          dy = 0.01;
+          d = 0.014;
+        }
+        if (d < minDistance) {
+          const push = (minDistance - d) * 0.045;
+          const nx = dx / d;
+          const ny = dy / d;
+          forces[i].x -= nx * push;
+          forces[i].y -= ny * push;
+          forces[j].x += nx * push;
+          forces[j].y += ny * push;
+        }
+      }
+    }
+
+    edges.forEach((edge) => {
+      const a = nodes[edge.a];
+      const b = nodes[edge.b];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const d = Math.max(0.001, Math.hypot(dx, dy));
+      const pull = (d - edgeLength) * 0.008;
+      const nx = dx / d;
+      const ny = dy / d;
+      forces[edge.a].x += nx * pull;
+      forces[edge.a].y += ny * pull;
+      forces[edge.b].x -= nx * pull;
+      forces[edge.b].y -= ny * pull;
+    });
+
+    nodes.forEach((node, i) => {
+      forces[i].x += (node.baseX - node.x) * 0.012;
+      forces[i].y += (node.baseY - node.y) * 0.012;
+      const familyAnchorX = node.family === "technical" ? 61 : 39;
+      forces[i].x += (familyAnchorX - node.x) * 0.002;
+    });
+
+    nodes.forEach((node, i) => {
+      node.x = clamp(node.x + forces[i].x, 8, 92);
+      node.y = clamp(node.y + forces[i].y, 12, 86);
+    });
+  }
+
+  return nodes.map(({ baseX: _bx, baseY: _by, ...rest }) => rest);
+}
+
 // Pick 1–2 nearest same-family non-gap neighbors per non-gap star (no full mesh).
 function buildEdges(stars: StarPoint[]): Array<{ a: number; b: number; family: TraitFamily }> {
   const edges = new Set<string>();
@@ -173,11 +251,17 @@ function buildEdges(stars: StarPoint[]): Array<{ a: number; b: number; family: T
 function ConstellationStar({
   star,
   selected,
+  hovered,
+  onHover,
+  onLeave,
   onSelect,
   offset,
 }: {
   star: StarPoint;
   selected: boolean;
+  hovered: boolean;
+  onHover: () => void;
+  onLeave: () => void;
   onSelect: () => void;
   offset: { x: number; y: number };
 }) {
@@ -187,18 +271,30 @@ function ConstellationStar({
   const haloSize = selected ? star.glowRadius + 18 : star.glowRadius;
 
   return (
-    <span
-      style={{ left: `${star.x}%`, top: `${star.y}%` }}
-      className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-    >
     <motion.button
       type="button"
-      onClick={onSelect}
+      style={{
+        left: `${star.x}%`,
+        top: `${star.y}%`,
+        width: 52,
+        height: 52,
+      }}
+      className="absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center rounded-full pointer-events-auto touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#3E63F5]/40"
+      animate={{ x: offset.x, y: offset.y }}
+      transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 150, damping: 20, mass: 0.35 }}
+      onPointerEnter={onHover}
+      onPointerLeave={onLeave}
+      onFocus={onHover}
+      onBlur={onLeave}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect();
+      }}
       aria-label={`${star.dim.dimension}, ${getSignalBand(star.dim.score).toLowerCase()} signal, ${getConfidenceBand(star.dim.confidence).toLowerCase()} confidence. Open trait details.`}
       aria-pressed={selected}
-      animate={{ x: offset.x, y: offset.y }}
-      transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 120, damping: 18, mass: 0.4 }}
-      className="group relative pointer-events-auto flex items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#3E63F5]/40"
     >
       {/* Halo: radius = score, opacity = confidence */}
       <span
@@ -215,7 +311,7 @@ function ConstellationStar({
       {/* Core */}
       {star.isGap ? (
         <span
-          className="relative rounded-full bg-[#FFFCF6] transition-transform group-hover:scale-110"
+          className="relative rounded-full bg-[#FFFCF6] pointer-events-none"
           style={{
             width: star.coreSize,
             height: star.coreSize,
@@ -224,7 +320,7 @@ function ConstellationStar({
         />
       ) : (
         <motion.span
-          className="relative rounded-full transition-transform group-hover:scale-110"
+          className="relative rounded-full pointer-events-none"
           style={{
             width: star.coreSize,
             height: star.coreSize,
@@ -237,16 +333,15 @@ function ConstellationStar({
       )}
       {/* Label under star */}
       <span
-        className={`absolute top-full mt-2 whitespace-nowrap text-[11px] font-bold pointer-events-none transition-opacity ${
-          selected
+        className={`absolute top-[44px] left-1/2 -translate-x-1/2 whitespace-nowrap text-[11px] font-bold pointer-events-none transition-opacity ${
+          selected || hovered
             ? "opacity-90 text-[#1F2430]"
-            : "opacity-40 text-[#1F2430]/80 group-hover:opacity-90 group-focus-visible:opacity-90"
+            : "opacity-45 text-[#1F2430]/80"
         }`}
       >
         {star.dim.dimension}
       </span>
     </motion.button>
-    </span>
   );
 }
 
@@ -257,17 +352,27 @@ interface ProfileConstellationProps {
 }
 
 function ProfileConstellation({ dimensions, selectedTrait, onSelectTrait }: ProfileConstellationProps) {
-  const stars = useMemo(() => buildStars(dimensions), [dimensions]);
-  const edges = useMemo(() => buildEdges(stars), [stars]);
+  const rawStars = useMemo(() => buildStars(dimensions), [dimensions]);
+  const rawEdges = useMemo(() => buildEdges(rawStars), [rawStars]);
+  const stars = useMemo(() => relaxStarLayout(rawStars, rawEdges), [rawStars, rawEdges]);
+  const edges = rawEdges;
   const selectedIdx = selectedTrait
     ? stars.findIndex((s) => s.dim.dimension === selectedTrait.dimension)
     : -1;
   const reduceMotion = useReducedMotion();
   const skyRef = useRef<HTMLDivElement | null>(null);
   const [pointer, setPointer] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [hoveredTrait, setHoveredTrait] = useState<string | null>(null);
 
   function getStarOffset(star: StarPoint, idx: number): { x: number; y: number } {
-    if (reduceMotion || !pointer || idx === selectedIdx) return { x: 0, y: 0 };
+    if (
+      reduceMotion ||
+      !pointer ||
+      idx === selectedIdx ||
+      hoveredTrait === star.dim.dimension
+    ) {
+      return { x: 0, y: 0 };
+    }
     const starPx = (star.x / 100) * pointer.w;
     const starPy = (star.y / 100) * pointer.h;
     const dx = starPx - pointer.x;
@@ -371,7 +476,10 @@ function ProfileConstellation({ dimensions, selectedTrait, onSelectTrait }: Prof
             key={s.dim.dimension}
             star={s}
             selected={i === selectedIdx}
+            hovered={hoveredTrait === s.dim.dimension}
             offset={getStarOffset(s, i)}
+            onHover={() => setHoveredTrait(s.dim.dimension)}
+            onLeave={() => setHoveredTrait(null)}
             onSelect={() => onSelectTrait(s.dim)}
           />
         ))}
