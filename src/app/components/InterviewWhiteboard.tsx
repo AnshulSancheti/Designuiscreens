@@ -24,6 +24,41 @@ export function InterviewWhiteboard() {
   strokesRef.current = strokes;
   const drawingRef = useRef<Stroke | null>(null);
   const [, force] = useState(0);
+  const [pendingTextPoint, setPendingTextPoint] = useState<{ x: number; y: number } | null>(null);
+  const [textDraft, setTextDraft] = useState("");
+  const textInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (pendingTextPoint) {
+      textInputRef.current?.focus();
+    }
+  }, [pendingTextPoint]);
+
+  const commitText = () => {
+    const value = textDraft.trim();
+    if (!pendingTextPoint || !value) {
+      setPendingTextPoint(null);
+      setTextDraft("");
+      return;
+    }
+    setStrokes((prev) => [
+      ...prev,
+      {
+        tool: "text",
+        color,
+        size,
+        points: [pendingTextPoint],
+        text: value,
+      },
+    ]);
+    setPendingTextPoint(null);
+    setTextDraft("");
+  };
+
+  const cancelText = () => {
+    setPendingTextPoint(null);
+    setTextDraft("");
+  };
 
   const redraw = () => {
     const canvas = canvasRef.current;
@@ -89,15 +124,17 @@ export function InterviewWhiteboard() {
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   };
 
-  const onPointerDown = (e: React.PointerEvent) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
+  const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const p = getPoint(e);
+
     if (tool === "text") {
-      const text = window.prompt("Text to add:");
-      if (!text) return;
-      setStrokes((prev) => [...prev, { tool, color, size, points: [p], text }]);
+      setPendingTextPoint(p);
+      setTextDraft("");
       return;
     }
+
+    e.currentTarget.setPointerCapture(e.pointerId);
+
     drawingRef.current = {
       tool,
       color,
@@ -118,11 +155,23 @@ export function InterviewWhiteboard() {
     force((n) => n + 1);
   };
 
-  const onPointerUp = () => {
-    if (drawingRef.current) {
-      setStrokes((prev) => [...prev, drawingRef.current!]);
-      drawingRef.current = null;
+  const finishDrawing = (e?: React.PointerEvent<HTMLCanvasElement>) => {
+    const completedStroke = drawingRef.current;
+    if (!completedStroke) return;
+
+    drawingRef.current = null;
+
+    if (e && e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
     }
+
+    setStrokes((prev) => [
+      ...prev,
+      {
+        ...completedStroke,
+        points: completedStroke.points.map((point) => ({ ...point })),
+      },
+    ]);
   };
 
   const undo = () => setStrokes((prev) => prev.slice(0, -1));
@@ -207,12 +256,30 @@ export function InterviewWhiteboard() {
           ref={canvasRef}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
-          onPointerLeave={onPointerUp}
+          onPointerUp={finishDrawing}
+          onPointerCancel={finishDrawing}
+          onLostPointerCapture={finishDrawing}
           className="absolute inset-0 touch-none"
           style={{ cursor: tool === "text" ? "text" : "crosshair" }}
         />
+        {pendingTextPoint && (
+          <input
+            ref={textInputRef}
+            value={textDraft}
+            onChange={(e) => setTextDraft(e.target.value)}
+            onBlur={commitText}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitText();
+              if (e.key === "Escape") cancelText();
+            }}
+            className="absolute z-30 min-w-[160px] rounded-lg border border-[#3E63F5]/30 bg-white px-3 py-2 text-sm font-semibold text-[#1F2430] shadow-[0_8px_24px_rgba(30,35,60,0.12)] outline-none ring-2 ring-[#3E63F5]/10"
+            style={{
+              left: pendingTextPoint.x,
+              top: pendingTextPoint.y,
+            }}
+            placeholder="Type text"
+          />
+        )}
       </div>
     </>
   );
