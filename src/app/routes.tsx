@@ -20,6 +20,9 @@ import { PricingPage } from "./components/PricingPage";
 import { ContactPage } from "./components/ContactPage";
 import { TermsPage } from "./components/TermsPage";
 import { PrivacyPage } from "./components/PrivacyPage";
+import { PipelineScreen } from "./components/PipelineScreen";
+import { MobileEmployerDashboard } from "./components/MobileEmployerDashboard";
+import { EmployerDataDemo } from "./components/EmployerDataDemo";
 
 export const router = createBrowserRouter([
   {
@@ -37,6 +40,18 @@ export const router = createBrowserRouter([
   {
     path: "/employer",
     Component: EmployerDashboard,
+  },
+  {
+    path: "/employer/pipeline",
+    Component: PipelineScreen,
+  },
+  {
+    path: "/employer/mobile",
+    Component: MobileEmployerDashboard,
+  },
+  {
+    path: "/employer/demo-data",
+    Component: EmployerDataDemo,
   },
   {
     path: "/candidate",
