@@ -1,11 +1,12 @@
-import { useState, useMemo } from "react";
-import { useNavigate } from "react-router";
+import { useState, useMemo, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Search, Filter, LayoutGrid, List, ChevronDown, Check, Users,
   AlertCircle, Clock, Mail, TrendingUp, ArrowRight, MoreVertical,
   Star, Eye, ThumbsDown, ChevronRight, Calendar, MapPin, Zap,
-  Sparkles, ShieldCheck, GitCompare, AlertTriangle, Building2, ArrowLeft,
+  Sparkles, ShieldCheck, GitCompare, AlertTriangle, Building2, ArrowLeft, Bell,
+  Pause, Play, Archive, XCircle, SlidersHorizontal,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -19,6 +20,8 @@ import {
 } from "./ui/dropdown-menu";
 import { Checkbox } from "./ui/checkbox";
 import { getMockCandidates, getMockRoles } from "../lib/mockEmployerData";
+import { getMockJobListings, type JobListing } from "../lib/jobListingTypes";
+import { EditCriteriaDrawer } from "./CreateJobDrawer";
 import { getStageName, getStageColor, getConfidenceBadgeColor } from "../lib/employerTypes";
 import type { EmployerCandidate, PipelineStage } from "../lib/employerTypes";
 
@@ -46,11 +49,40 @@ interface HealthNudge {
 
 export function PipelineScreen() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialRole = searchParams.get("role");
   const [viewMode, setViewMode] = useState<ViewMode>("kanban");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedRole, setSelectedRole] = useState<string | null>(null);
+  const [selectedRole, setSelectedRole] = useState<string | null>(initialRole);
+
+  useEffect(() => {
+    const r = searchParams.get("role");
+    if (r) setSelectedRole(r);
+  }, [searchParams]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkMenuOpen, setBulkMenuOpen] = useState(false);
+  const [showAlerts, setShowAlerts] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [minFit, setMinFit] = useState(0);
+  const [confidenceFilters, setConfidenceFilters] = useState<string[]>([]);
+  const [availabilityFilter, setAvailabilityFilter] = useState<string | null>(null);
+  const [locationFilter, setLocationFilter] = useState<string | null>(null);
+  const [slaFilter, setSlaFilter] = useState<string | null>(null);
+  const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
+  const [optedInOnly, setOptedInOnly] = useState(false);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [jobListings, setJobListings] = useState<JobListing[]>(() => getMockJobListings());
+  const [editCriteriaJob, setEditCriteriaJob] = useState<JobListing | null>(null);
+  const currentJobListing = useMemo(
+    () => (selectedRole ? jobListings.find((j) => j.title === selectedRole) ?? null : null),
+    [selectedRole, jobListings]
+  );
+  const [roleStatuses, setRoleStatuses] = useState<Record<string, "active" | "paused" | "archived" | "closed">>({});
+  const currentRoleStatus = selectedRole ? roleStatuses[selectedRole] ?? "active" : "active";
+  const updateRoleStatus = (status: "active" | "paused" | "archived" | "closed") => {
+    if (!selectedRole) return;
+    setRoleStatuses((prev) => ({ ...prev, [selectedRole]: status }));
+  };
 
   const allCandidates = useMemo(() => getMockCandidates(), []);
   const allRoles = useMemo(() => getMockRoles(), []);
@@ -60,11 +92,69 @@ export function PipelineScreen() {
     return unique;
   }, [allCandidates]);
 
+  const availabilityOptions = useMemo(
+    () => Array.from(new Set(allCandidates.map((c) => c.availability))).sort(),
+    [allCandidates]
+  );
+  const locationOptions = useMemo(
+    () => Array.from(new Set(allCandidates.map((c) => c.location))).sort(),
+    [allCandidates]
+  );
+  const ownerOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(allCandidates.map((c) => c.owner).filter(Boolean) as string[])
+      ).sort(),
+    [allCandidates]
+  );
+  const tagOptions = useMemo(
+    () =>
+      Array.from(new Set(allCandidates.flatMap((c) => c.topTwoTags))).sort(),
+    [allCandidates]
+  );
+
+  const toggleConfidence = (v: string) =>
+    setConfidenceFilters((prev) =>
+      prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]
+    );
+
+  const activeFilterCount =
+    (selectedRole ? 1 : 0) +
+    (minFit > 0 ? 1 : 0) +
+    confidenceFilters.length +
+    (availabilityFilter ? 1 : 0) +
+    (locationFilter ? 1 : 0) +
+    (slaFilter ? 1 : 0) +
+    (ownerFilter ? 1 : 0) +
+    (optedInOnly ? 1 : 0) +
+    (tagFilter ? 1 : 0);
+
+  const clearAllFilters = () => {
+    setSelectedRole(null);
+    setMinFit(0);
+    setConfidenceFilters([]);
+    setAvailabilityFilter(null);
+    setLocationFilter(null);
+    setSlaFilter(null);
+    setOwnerFilter(null);
+    setOptedInOnly(false);
+    setTagFilter(null);
+  };
+
   const filteredCandidates = useMemo(() => {
     let list = allCandidates;
-    if (selectedRole) {
-      list = list.filter((c) => c.targetRole === selectedRole);
-    }
+    if (selectedRole) list = list.filter((c) => c.targetRole === selectedRole);
+    if (minFit > 0) list = list.filter((c) => c.fitScore >= minFit);
+    if (confidenceFilters.length > 0)
+      list = list.filter((c) => confidenceFilters.includes(c.evidenceConfidence));
+    if (availabilityFilter)
+      list = list.filter((c) => c.availability === availabilityFilter);
+    if (locationFilter) list = list.filter((c) => c.location === locationFilter);
+    if (slaFilter) list = list.filter((c) => c.slaStatus === slaFilter);
+    if (ownerFilter) list = list.filter((c) => c.owner === ownerFilter);
+    if (optedInOnly) list = list.filter((c) => c.hasOptedIn);
+    if (tagFilter)
+      list = list.filter((c) => c.topTwoTags.includes(tagFilter));
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       list = list.filter(
@@ -75,7 +165,19 @@ export function PipelineScreen() {
       );
     }
     return list;
-  }, [selectedRole, searchQuery, allCandidates]);
+  }, [
+    allCandidates,
+    selectedRole,
+    minFit,
+    confidenceFilters,
+    availabilityFilter,
+    locationFilter,
+    slaFilter,
+    ownerFilter,
+    optedInOnly,
+    tagFilter,
+    searchQuery,
+  ]);
 
   const healthNudges = useMemo<HealthNudge[]>(() => {
     const nudges: HealthNudge[] = [];
@@ -155,23 +257,130 @@ export function PipelineScreen() {
               <h1 className="text-lg sm:text-xl">Pipeline</h1>
             </div>
             <div className="flex items-center gap-2">
+              {selectedRole && (
+                <>
+                  <span
+                    className="hidden md:inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full"
+                    style={{
+                      backgroundColor:
+                        currentRoleStatus === "active" ? "rgba(16,185,129,0.12)" :
+                        currentRoleStatus === "paused" ? "rgba(245,158,11,0.14)" :
+                        currentRoleStatus === "archived" ? "rgba(31,36,48,0.08)" :
+                        "rgba(239,68,68,0.12)",
+                      color:
+                        currentRoleStatus === "active" ? "#10B981" :
+                        currentRoleStatus === "paused" ? "#B45309" :
+                        currentRoleStatus === "archived" ? "#1F2430" :
+                        "#B91C1C",
+                    }}
+                  >
+                    <span
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{
+                        backgroundColor:
+                          currentRoleStatus === "active" ? "#10B981" :
+                          currentRoleStatus === "paused" ? "#F59E0B" :
+                          currentRoleStatus === "archived" ? "#1F2430" :
+                          "#EF4444",
+                      }}
+                    />
+                    {currentRoleStatus[0].toUpperCase() + currentRoleStatus.slice(1)}
+                  </span>
+                  {currentJobListing && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 px-3"
+                      onClick={() => setEditCriteriaJob(currentJobListing)}
+                      aria-label="Tune matching criteria"
+                    >
+                      <SlidersHorizontal className="w-4 h-4 sm:mr-1.5" />
+                      <span className="hidden sm:inline">Tune matching</span>
+                    </Button>
+                  )}
+                  {currentRoleStatus === "paused" ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 px-3"
+                      onClick={() => updateRoleStatus("active")}
+                      aria-label="Resume role"
+                    >
+                      <Play className="w-4 h-4 sm:mr-1.5" />
+                      <span className="hidden sm:inline">Resume</span>
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 px-3"
+                      onClick={() => updateRoleStatus("paused")}
+                      disabled={currentRoleStatus !== "active"}
+                      aria-label="Pause role"
+                    >
+                      <Pause className="w-4 h-4 sm:mr-1.5" />
+                      <span className="hidden sm:inline">Pause</span>
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 px-3"
+                    onClick={() => updateRoleStatus("closed")}
+                    disabled={currentRoleStatus === "closed" || currentRoleStatus === "archived"}
+                    aria-label="Close role"
+                  >
+                    <XCircle className="w-4 h-4 sm:mr-1.5" />
+                    <span className="hidden sm:inline">Close</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 px-3"
+                    onClick={() => updateRoleStatus("archived")}
+                    disabled={currentRoleStatus === "archived"}
+                    aria-label="Archive role"
+                  >
+                    <Archive className="w-4 h-4 sm:mr-1.5" />
+                    <span className="hidden sm:inline">Archive</span>
+                  </Button>
+                  <span className="w-px h-6 bg-black/10 mx-1" />
+                </>
+              )}
               <Button
-                variant={viewMode === "kanban" ? "default" : "outline"}
+                variant={showFilters ? "default" : "outline"}
                 size="sm"
-                onClick={() => setViewMode("kanban")}
-                className="h-9 px-3"
+                onClick={() => setShowFilters((v) => !v)}
+                className="h-9 px-3 relative"
+                aria-label="Filters"
               >
-                <LayoutGrid className="w-4 h-4 sm:mr-1.5" />
-                <span className="hidden sm:inline">Kanban</span>
+                <Filter className="w-4 h-4 sm:mr-1.5" />
+                <span className="hidden sm:inline">Filters</span>
+                {activeFilterCount > 0 && (
+                  <span
+                    className="ml-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] flex items-center justify-center text-white"
+                    style={{ backgroundColor: "#3E63F5" }}
+                  >
+                    {activeFilterCount}
+                  </span>
+                )}
               </Button>
               <Button
-                variant={viewMode === "table" ? "default" : "outline"}
+                variant={showAlerts ? "default" : "outline"}
                 size="sm"
-                onClick={() => setViewMode("table")}
-                className="h-9 px-3"
+                onClick={() => setShowAlerts((v) => !v)}
+                className="h-9 px-3 relative"
+                aria-label="Notifications"
               >
-                <List className="w-4 h-4 sm:mr-1.5" />
-                <span className="hidden sm:inline">Table</span>
+                <Bell className="w-4 h-4" />
+                {healthNudges.length > 0 && (
+                  <span
+                    className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] flex items-center justify-center text-white"
+                    style={{ backgroundColor: "#EF4444" }}
+                  >
+                    {healthNudges.length}
+                  </span>
+                )}
               </Button>
             </div>
           </div>
@@ -211,7 +420,113 @@ export function PipelineScreen() {
         </div>
       </header>
 
-      {healthNudges.length > 0 && (
+      {showFilters && (
+        <div
+          className="px-3 sm:px-6 py-4 border-b bg-white/60 backdrop-blur-sm"
+          style={{ borderColor: "rgba(31, 36, 48, 0.08)" }}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm" style={{ color: "#1F2430" }}>Filters</p>
+            {activeFilterCount > 0 && (
+              <button
+                onClick={clearAllFilters}
+                className="text-xs"
+                style={{ color: "#3E63F5" }}
+              >
+                Clear all ({activeFilterCount})
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            <FilterSelect
+              label="Role"
+              value={selectedRole}
+              onChange={setSelectedRole}
+              options={roles}
+            />
+            <FilterSelect
+              label="Availability"
+              value={availabilityFilter}
+              onChange={setAvailabilityFilter}
+              options={availabilityOptions}
+            />
+            <FilterSelect
+              label="Location"
+              value={locationFilter}
+              onChange={setLocationFilter}
+              options={locationOptions}
+            />
+            <FilterSelect
+              label="Owner"
+              value={ownerFilter}
+              onChange={setOwnerFilter}
+              options={ownerOptions}
+            />
+            <FilterSelect
+              label="SLA status"
+              value={slaFilter}
+              onChange={setSlaFilter}
+              options={["on_time", "approaching", "overdue"]}
+              formatLabel={(v) => v.replace("_", " ")}
+            />
+            <FilterSelect
+              label="Top strength"
+              value={tagFilter}
+              onChange={setTagFilter}
+              options={tagOptions}
+            />
+            <div>
+              <label className="text-xs mb-1.5 block" style={{ color: "#1F2430", opacity: 0.7 }}>
+                Min fit score: {minFit}
+              </label>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                value={minFit}
+                onChange={(e) => setMinFit(Number(e.target.value))}
+                className="w-full accent-[#3E63F5]"
+              />
+            </div>
+            <div>
+              <label className="text-xs mb-1.5 block" style={{ color: "#1F2430", opacity: 0.7 }}>
+                Evidence confidence
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {(["Strong", "Moderate", "Needs validation"] as const).map((c) => {
+                  const active = confidenceFilters.includes(c);
+                  return (
+                    <button
+                      key={c}
+                      onClick={() => toggleConfidence(c)}
+                      className="text-xs px-2.5 py-1.5 rounded-full border transition-colors"
+                      style={{
+                        borderColor: active ? "#3E63F5" : "rgba(31, 36, 48, 0.15)",
+                        backgroundColor: active ? "rgba(62, 99, 245, 0.08)" : "transparent",
+                        color: active ? "#3E63F5" : "#1F2430",
+                      }}
+                    >
+                      {c}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <label className="flex items-center gap-2 self-end cursor-pointer">
+              <Checkbox
+                checked={optedInOnly}
+                onCheckedChange={(v) => setOptedInOnly(Boolean(v))}
+              />
+              <span className="text-sm" style={{ color: "#1F2430" }}>
+                Opted-in only
+              </span>
+            </label>
+          </div>
+        </div>
+      )}
+
+      {showAlerts && healthNudges.length > 0 && (
         <div className="px-3 sm:px-6 py-3 space-y-2">
           {healthNudges.map((nudge) => (
             <motion.div
@@ -319,22 +634,28 @@ export function PipelineScreen() {
         </div>
       )}
 
-      <div className="px-3 sm:px-6 pb-6">
-        {viewMode === "kanban" ? (
-          <KanbanView
-            candidates={filteredCandidates}
-            selectedIds={selectedIds}
-            onSelectCandidate={handleSelectCandidate}
-          />
-        ) : (
-          <TableView
-            candidates={filteredCandidates}
-            selectedIds={selectedIds}
-            onSelectAll={handleSelectAll}
-            onSelectCandidate={handleSelectCandidate}
-          />
-        )}
+      <div className="px-0 sm:px-0 pb-0 font-[Inter,sans-serif]">
+        <StageAccordion
+          candidates={filteredCandidates}
+          selectedIds={selectedIds}
+          onSelectCandidate={handleSelectCandidate}
+          viewMode={viewMode}
+          onSelectAll={handleSelectAll}
+        />
       </div>
+
+      {editCriteriaJob && (
+        <EditCriteriaDrawer
+          existing={editCriteriaJob}
+          onCancel={() => setEditCriteriaJob(null)}
+          onSubmit={(updated) => {
+            setJobListings((prev) =>
+              prev.map((j) => (j.id === updated.id ? updated : j))
+            );
+            setEditCriteriaJob(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -343,6 +664,211 @@ interface KanbanViewProps {
   candidates: EmployerCandidate[];
   selectedIds: string[];
   onSelectCandidate: (id: string, checked: boolean) => void;
+}
+
+interface StageAccordionProps {
+  candidates: EmployerCandidate[];
+  selectedIds: string[];
+  onSelectCandidate: (id: string, checked: boolean) => void;
+  onSelectAll: (checked: boolean) => void;
+  viewMode: ViewMode;
+}
+
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  options,
+  formatLabel,
+}: {
+  label: string;
+  value: string | null;
+  onChange: (v: string | null) => void;
+  options: string[];
+  formatLabel?: (v: string) => string;
+}) {
+  return (
+    <div>
+      <label
+        className="text-xs mb-1.5 block"
+        style={{ color: "#1F2430", opacity: 0.7 }}
+      >
+        {label}
+      </label>
+      <select
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value || null)}
+        className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-[#3E63F5]"
+        style={{ borderColor: "rgba(31, 36, 48, 0.15)", color: "#1F2430" }}
+      >
+        <option value="">All</option>
+        {options.map((o) => (
+          <option key={o} value={o}>
+            {formatLabel ? formatLabel(o) : o}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function StageAccordion({ candidates, selectedIds, onSelectCandidate }: StageAccordionProps) {
+  const [activeStage, setActiveStage] = useState<PipelineStage>("new");
+
+  const stagesWithCounts = STAGES.map((s) => ({
+    ...s,
+    items: candidates.filter((c) => c.stage === s.id),
+  }));
+
+  const activeStageData = stagesWithCounts.find((s) => s.id === activeStage)!;
+  const dotColor = (id: PipelineStage) =>
+    id === "new" ? "#3E63F5" :
+    id === "shortlisted" ? "#6366F1" :
+    id === "interviewing" ? "#0D9488" :
+    id === "offer" || id === "hired" ? "#10B981" :
+    id === "rejected" ? "#9CA3AF" :
+    "#A78BFA";
+
+  return (
+    <div className="w-full grid grid-cols-1 md:grid-cols-[260px_1fr] md:h-[calc(100vh-140px)]">
+      {/* Sidebar */}
+      <aside
+        className="border-r bg-white/70 backdrop-blur-sm p-2 md:h-full md:overflow-y-auto"
+        style={{ borderColor: "rgba(31, 36, 48, 0.1)" }}
+      >
+        <p
+          className="text-xs uppercase tracking-wide px-3 pt-2 pb-2"
+          style={{ color: "#1F2430", opacity: 0.5 }}
+        >
+          Stages
+        </p>
+        <nav className="flex flex-row md:flex-col gap-1 overflow-x-auto md:overflow-visible">
+          {stagesWithCounts.map((stage) => {
+            const isActive = stage.id === activeStage;
+            return (
+              <button
+                key={stage.id}
+                onClick={() => setActiveStage(stage.id)}
+                className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-left transition-colors whitespace-nowrap md:whitespace-normal"
+                style={{
+                  backgroundColor: isActive ? "rgba(62, 99, 245, 0.08)" : "transparent",
+                  color: isActive ? "#3E63F5" : "#1F2430",
+                }}
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  <span
+                    className="inline-block w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: dotColor(stage.id) }}
+                  />
+                  <span className="text-sm truncate">{stage.label}</span>
+                </span>
+                <span
+                  className="text-xs px-2 py-0.5 rounded-full shrink-0"
+                  style={{
+                    backgroundColor: isActive ? "#3E63F5" : "rgba(31, 36, 48, 0.06)",
+                    color: isActive ? "#FFFFFF" : "rgba(31, 36, 48, 0.65)",
+                  }}
+                >
+                  {stage.items.length}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
+
+      {/* Right pane */}
+      <section className="bg-white/40 md:h-full md:overflow-y-auto flex flex-col">
+        <div
+          className="px-5 py-4 border-b flex items-center gap-3 sticky top-0 bg-white/80 backdrop-blur-sm z-10"
+          style={{ borderColor: "rgba(31, 36, 48, 0.08)" }}
+        >
+          <span
+            className="inline-block w-2 h-2 rounded-full"
+            style={{ backgroundColor: dotColor(activeStageData.id) }}
+          />
+          <h3 style={{ color: "#1F2430" }}>{activeStageData.label}</h3>
+          <span
+            className="text-xs px-2 py-0.5 rounded-full"
+            style={{ backgroundColor: "rgba(62, 99, 245, 0.08)", color: "#3E63F5" }}
+          >
+            {activeStageData.items.length}
+          </span>
+        </div>
+
+        {activeStageData.items.length === 0 ? (
+          <div className="px-5 py-16 text-center">
+            <p className="text-sm" style={{ color: "#1F2430", opacity: 0.6 }}>
+              No candidates in {activeStageData.label.toLowerCase()} yet.
+            </p>
+          </div>
+        ) : (
+          <div
+            className="divide-y"
+            style={{ borderColor: "rgba(31, 36, 48, 0.08)" }}
+          >
+            <AnimatePresence initial={false} mode="popLayout">
+              {activeStageData.items.map((candidate) => {
+                const checked = selectedIds.includes(candidate.id);
+                return (
+                  <motion.div
+                    key={candidate.id}
+                    layout
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.18 }}
+                    className="flex items-start gap-3 px-5 py-4 hover:bg-[#F3F2F0]/40 transition-colors"
+                  >
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={(v) =>
+                        onSelectCandidate(candidate.id, Boolean(v))
+                      }
+                      className="mt-1"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span style={{ color: "#1F2430" }}>
+                          {candidate.hasOptedIn ? candidate.name : candidate.anonymousId}
+                        </span>
+                        <Badge
+                          className={`text-xs border ${getConfidenceBadgeColor(candidate.evidenceConfidence)}`}
+                        >
+                          {candidate.evidenceConfidence}
+                        </Badge>
+                      </div>
+                      <p
+                        className="text-sm mb-1"
+                        style={{ color: "#1F2430", opacity: 0.7 }}
+                      >
+                        {candidate.targetRole}
+                      </p>
+                      <p
+                        className="text-xs flex items-center gap-2 flex-wrap"
+                        style={{ color: "#1F2430", opacity: 0.55 }}
+                      >
+                        <MapPin className="w-3 h-3" />
+                        <span>{candidate.location}</span>
+                        <span>·</span>
+                        <span>{candidate.availability}</span>
+                        <span>·</span>
+                        <span>{candidate.lastActivity}</span>
+                      </p>
+                    </div>
+                    <ChevronRight
+                      className="w-4 h-4 mt-2 shrink-0"
+                      style={{ color: "#1F2430", opacity: 0.4 }}
+                    />
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+          </div>
+        )}
+      </section>
+    </div>
+  );
 }
 
 function KanbanView({ candidates, selectedIds, onSelectCandidate }: KanbanViewProps) {

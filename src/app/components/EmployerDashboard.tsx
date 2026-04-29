@@ -1,90 +1,70 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
+import { motion } from "motion/react";
 import {
-  Search, Sparkles, MapPin, Clock, ChevronRight, Briefcase,
-  Bookmark, Mail, X, Filter, Building2,
+  Plus, Search, Building2, Bell, ArrowRight, Users,
+  AlertTriangle, Briefcase, X, MoreHorizontal,
 } from "lucide-react";
-import {
-  getMockCandidates,
-  getMockRoles,
-} from "../lib/mockEmployerData";
-import {
-  getStageName,
-  getStageColor,
-  getConfidenceBadgeColor,
-} from "../lib/employerTypes";
-import type {
-  EmployerCandidate,
-  PipelineStage,
-} from "../lib/employerTypes";
+import { getMockCandidates, getMockRoles } from "../lib/mockEmployerData";
+import type { Role } from "../lib/employerTypes";
+import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-
-type TabId = "discover" | PipelineStage;
-
-const TAB_ORDER: Array<{ id: TabId; label: string }> = [
-  { id: "discover", label: "Discover" },
-  { id: "new", label: "New" },
-  { id: "reviewed", label: "Reviewed" },
-  { id: "shortlisted", label: "Shortlisted" },
-  { id: "intro_requested", label: "Intros" },
-  { id: "interviewing", label: "Interviewing" },
-  { id: "offer", label: "Offers" },
-];
 
 export function EmployerDashboard() {
   const navigate = useNavigate();
-  const candidates = useMemo(() => getMockCandidates(), []);
-  const roles = useMemo(() => getMockRoles(), []);
+  const seedRoles = useMemo(() => getMockRoles(), []);
+  const allCandidates = useMemo(() => getMockCandidates(), []);
 
-  const [activeTab, setActiveTab] = useState<TabId>("discover");
+  const [roles, setRoles] = useState<Role[]>(seedRoles);
   const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<string>("all");
-  const [selectedCandidate, setSelectedCandidate] = useState<EmployerCandidate | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | "healthy" | "needs_attention" | "critical">("all");
+  const [showAlerts, setShowAlerts] = useState(false);
+  const goCreate = () => navigate("/employer/jobs");
 
-  const tabCounts = useMemo(() => {
-    const counts: Record<string, number> = {
-      discover: candidates.filter((c) => c.fitScore >= 85).length,
-    };
-    for (const c of candidates) {
-      counts[c.stage] = (counts[c.stage] || 0) + 1;
-    }
-    return counts;
-  }, [candidates]);
+  const alerts = useMemo(
+    () => roles.filter((r) => r.healthStatus !== "healthy"),
+    [roles]
+  );
 
-  const filtered = useMemo(() => {
-    let list = candidates;
-    if (activeTab === "discover") {
-      list = list.filter((c) => c.fitScore >= 85);
-    } else {
-      list = list.filter((c) => c.stage === activeTab);
-    }
-    if (roleFilter !== "all") {
-      list = list.filter((c) => c.targetRole === roleFilter);
-    }
+  const filteredRoles = useMemo(() => {
+    let list = roles;
+    if (statusFilter !== "all") list = list.filter((r) => r.healthStatus === statusFilter);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
-        (c) =>
-          c.name.toLowerCase().includes(q) ||
-          c.targetRole.toLowerCase().includes(q) ||
-          c.topTwoTags.some((t) => t.toLowerCase().includes(q))
+        (r) =>
+          r.title.toLowerCase().includes(q) ||
+          r.department.toLowerCase().includes(q) ||
+          r.level.toLowerCase().includes(q)
       );
     }
-    if (activeTab === "discover") {
-      list = [...list].sort((a, b) => b.fitScore - a.fitScore);
-    }
     return list;
-  }, [candidates, activeTab, search, roleFilter]);
+  }, [roles, statusFilter, search]);
+
+  const totals = useMemo(() => {
+    return {
+      activeRoles: roles.filter((r) => r.isActive).length,
+      newCandidates: roles.reduce((s, r) => s + r.counts.newCandidates, 0),
+      highFit: roles.reduce((s, r) => s + r.counts.highFit, 0),
+      pendingIntros: roles.reduce((s, r) => s + r.counts.pendingIntros, 0),
+    };
+  }, [roles]);
+
+  const openPipeline = (role: Role) => {
+    navigate(`/employer/pipeline?role=${encodeURIComponent(role.title)}`);
+  };
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#F8F7F5" }}>
-      {/* Top bar */}
+    <div
+      className="min-h-screen font-[Inter,sans-serif]"
+      style={{ backgroundColor: "#F3F2F0" }}
+    >
       <header
-        className="sticky top-0 z-20 border-b backdrop-blur"
-        style={{ backgroundColor: "rgba(248, 247, 245, 0.85)", borderColor: "rgba(31, 36, 48, 0.08)" }}
+        className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-30"
+        style={{ borderColor: "rgba(31, 36, 48, 0.08)" }}
       >
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
             <div
               className="w-8 h-8 rounded-lg flex items-center justify-center"
               style={{ backgroundColor: "#1F2430" }}
@@ -93,346 +73,331 @@ export function EmployerDashboard() {
             </div>
             <div>
               <p className="text-sm" style={{ color: "#1F2430" }}>PlacedOn</p>
-              <p className="text-xs" style={{ color: "#1F2430", opacity: 0.6 }}>Talent discovery</p>
+              <p className="text-xs" style={{ color: "#1F2430", opacity: 0.6 }}>
+                Hiring dashboard
+              </p>
             </div>
           </div>
-          <button
-            onClick={() => navigate("/employer/pipeline")}
-            className="text-sm px-3 py-2 rounded-md hover:bg-black/5 transition-colors"
-            style={{ color: "#1F2430" }}
-          >
-            Pipeline view
-          </button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={showAlerts ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowAlerts((v) => !v)}
+              className="h-9 px-3 relative"
+              aria-label="Notifications"
+            >
+              <Bell className="w-4 h-4" />
+              {alerts.length > 0 && (
+                <span
+                  className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] flex items-center justify-center text-white"
+                  style={{ backgroundColor: "#EF4444" }}
+                >
+                  {alerts.length}
+                </span>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/employer/jobs")}
+              className="h-9 px-3"
+            >
+              <Briefcase className="w-4 h-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Manage jobs</span>
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => navigate("/employer/jobs")}
+              className="h-9 px-3 text-white"
+              style={{ backgroundColor: "#3E63F5" }}
+            >
+              <Plus className="w-4 h-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">New role</span>
+            </Button>
+          </div>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         {/* Hero */}
         <section className="mb-8">
-          <h1 className="text-3xl mb-2" style={{ color: "#1F2430" }}>
-            Discover the right candidate
+          <h1 className="text-3xl mb-1" style={{ color: "#1F2430" }}>
+            Your hiring pipeline
           </h1>
-          <p className="text-sm mb-6" style={{ color: "#1F2430", opacity: 0.7 }}>
-            Search {candidates.length} verified candidates across {roles.length} active roles in the PlacedOn database.
+          <p className="text-sm" style={{ color: "#1F2430", opacity: 0.7 }}>
+            Manage every open role and dive into its pipeline of {allCandidates.length} verified candidates.
           </p>
+        </section>
 
-          {/* Search + role filter */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div
-              className="flex items-center gap-2 flex-1 rounded-lg border bg-white px-4 py-3"
-              style={{ borderColor: "rgba(31, 36, 48, 0.12)" }}
-            >
-              <Search className="w-4 h-4" style={{ color: "#1F2430", opacity: 0.5 }} />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name, role, or skill"
-                className="flex-1 bg-transparent outline-none text-sm"
-                style={{ color: "#1F2430" }}
-              />
-              {search && (
-                <button onClick={() => setSearch("")} className="p-1 rounded hover:bg-black/5">
-                  <X className="w-3.5 h-3.5" style={{ color: "#1F2430", opacity: 0.5 }} />
-                </button>
-              )}
-            </div>
-            <div
-              className="flex items-center gap-2 rounded-lg border bg-white px-3 py-3 sm:min-w-[220px]"
-              style={{ borderColor: "rgba(31, 36, 48, 0.12)" }}
-            >
-              <Filter className="w-4 h-4" style={{ color: "#1F2430", opacity: 0.5 }} />
-              <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-                className="flex-1 bg-transparent outline-none text-sm"
-                style={{ color: "#1F2430" }}
+        {/* Summary tiles */}
+        <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          <SummaryTile label="Active roles" value={totals.activeRoles} accent="#1F2430" />
+          <SummaryTile label="New candidates" value={totals.newCandidates} accent="#3E63F5" />
+          <SummaryTile label="High-fit (≥85)" value={totals.highFit} accent="#10B981" />
+          <SummaryTile label="Pending intros" value={totals.pendingIntros} accent="#F59E0B" />
+        </section>
+
+        {/* Alerts */}
+        {showAlerts && alerts.length > 0 && (
+          <section className="mb-6 space-y-2">
+            {alerts.map((r) => (
+              <div
+                key={r.id}
+                className="flex items-center gap-3 p-3 rounded-lg border bg-amber-50 border-amber-200"
               >
-                <option value="all">All roles</option>
-                {roles.map((r) => (
-                  <option key={r.id} value={r.title}>{r.title}</option>
-                ))}
-              </select>
-            </div>
+                <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
+                <p className="text-sm text-amber-900 flex-1">
+                  <span className="font-medium">{r.title}:</span>{" "}
+                  {r.healthMessage ?? "Needs attention"}
+                </p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-amber-800 hover:bg-amber-100 h-8"
+                  onClick={() => openPipeline(r)}
+                >
+                  Review <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+                </Button>
+              </div>
+            ))}
+          </section>
+        )}
+
+        {/* Filters bar */}
+        <section className="flex flex-col sm:flex-row gap-3 mb-5">
+          <div
+            className="flex items-center gap-2 flex-1 rounded-lg border bg-white px-3 py-2"
+            style={{ borderColor: "rgba(31, 36, 48, 0.12)" }}
+          >
+            <Search className="w-4 h-4" style={{ color: "#1F2430", opacity: 0.5 }} />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search roles by title, department, or level"
+              className="flex-1 bg-transparent outline-none text-sm"
+              style={{ color: "#1F2430" }}
+            />
+            {search && (
+              <button onClick={() => setSearch("")} className="p-1 rounded hover:bg-black/5">
+                <X className="w-3.5 h-3.5" style={{ color: "#1F2430", opacity: 0.5 }} />
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-1 bg-white rounded-lg border p-1" style={{ borderColor: "rgba(31, 36, 48, 0.12)" }}>
+            {(
+              [
+                { id: "all", label: "All" },
+                { id: "healthy", label: "Healthy" },
+                { id: "needs_attention", label: "Needs attention" },
+                { id: "critical", label: "Critical" },
+              ] as const
+            ).map((opt) => {
+              const active = statusFilter === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => setStatusFilter(opt.id)}
+                  className="text-xs px-3 py-1.5 rounded-md transition-colors"
+                  style={{
+                    backgroundColor: active ? "#1F2430" : "transparent",
+                    color: active ? "#FFFFFF" : "#1F2430",
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
           </div>
         </section>
 
-        {/* Tabs */}
-        <nav
-          className="flex items-center gap-1 mb-6 border-b overflow-x-auto"
-          style={{ borderColor: "rgba(31, 36, 48, 0.1)" }}
-        >
-          {TAB_ORDER.map((tab) => {
-            const isActive = activeTab === tab.id;
-            const count = tabCounts[tab.id] ?? 0;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className="px-4 py-3 text-sm whitespace-nowrap relative transition-colors"
-                style={{
-                  color: isActive ? "#1F2430" : "rgba(31, 36, 48, 0.55)",
-                }}
-              >
-                <span className="flex items-center gap-2">
-                  {tab.label}
-                  <span
-                    className="text-xs px-1.5 py-0.5 rounded"
-                    style={{
-                      backgroundColor: isActive ? "#1F2430" : "rgba(31, 36, 48, 0.06)",
-                      color: isActive ? "#FFFFFF" : "rgba(31, 36, 48, 0.6)",
-                    }}
-                  >
-                    {count}
-                  </span>
-                </span>
-                {isActive && (
-                  <span
-                    className="absolute left-0 right-0 -bottom-px h-0.5"
-                    style={{ backgroundColor: "#1F2430" }}
-                  />
-                )}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Results */}
-        {activeTab === "discover" && filtered.length > 0 && (
-          <div className="flex items-center gap-2 mb-4 text-xs" style={{ color: "#1F2430", opacity: 0.6 }}>
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Top matches (fit ≥ 85) · {filtered.length} candidates</span>
-          </div>
-        )}
-
-        {filtered.length === 0 ? (
-          <EmptyState />
+        {/* Role cards */}
+        {filteredRoles.length === 0 ? (
+          <EmptyRoles onCreate={goCreate} />
         ) : (
-          <div className="space-y-3">
-            {filtered.slice(0, 30).map((c) => (
-              <CandidateRow
-                key={c.id}
-                candidate={c}
-                onClick={() => setSelectedCandidate(c)}
+          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredRoles.map((role, i) => (
+              <RoleCard
+                key={role.id}
+                role={role}
+                index={i}
+                onOpen={() => openPipeline(role)}
               />
             ))}
-          </div>
+            <AddRoleCard onClick={goCreate} />
+          </section>
         )}
       </main>
-
-      {selectedCandidate && (
-        <CandidateDrawer
-          candidate={selectedCandidate}
-          onClose={() => setSelectedCandidate(null)}
-        />
-      )}
     </div>
   );
 }
 
-function CandidateRow({
-  candidate,
-  onClick,
+function SummaryTile({
+  label,
+  value,
+  accent,
 }: {
-  candidate: EmployerCandidate;
-  onClick: () => void;
+  label: string;
+  value: number;
+  accent: string;
 }) {
-  const fitColor =
-    candidate.fitScore >= 90 ? "#10B981" :
-    candidate.fitScore >= 80 ? "#3E63F5" : "#1F2430";
+  return (
+    <div
+      className="rounded-2xl border bg-white p-4"
+      style={{ borderColor: "rgba(31, 36, 48, 0.1)" }}
+    >
+      <p className="text-xs mb-1" style={{ color: "#1F2430", opacity: 0.6 }}>
+        {label}
+      </p>
+      <p className="text-2xl" style={{ color: accent }}>
+        {value}
+      </p>
+    </div>
+  );
+}
 
+function RoleCard({
+  role,
+  index,
+  onOpen,
+}: {
+  role: Role;
+  index: number;
+  onOpen: () => void;
+}) {
+  const healthDot =
+    role.healthStatus === "healthy" ? "#10B981" :
+    role.healthStatus === "needs_attention" ? "#F59E0B" : "#EF4444";
+  const healthLabel =
+    role.healthStatus === "healthy" ? "Healthy" :
+    role.healthStatus === "needs_attention" ? "Needs attention" : "Critical";
+
+  return (
+    <motion.button
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2, delay: Math.min(index * 0.03, 0.2) }}
+      onClick={onOpen}
+      className="text-left rounded-2xl border bg-white hover:shadow-md transition-all p-5 group"
+      style={{ borderColor: "rgba(31, 36, 48, 0.1)" }}
+    >
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span
+              className="inline-block w-2 h-2 rounded-full"
+              style={{ backgroundColor: healthDot }}
+            />
+            <span className="text-xs" style={{ color: "#1F2430", opacity: 0.6 }}>
+              {healthLabel}
+            </span>
+          </div>
+          <h3 className="truncate" style={{ color: "#1F2430" }}>
+            {role.title}
+          </h3>
+          <p className="text-sm mt-0.5" style={{ color: "#1F2430", opacity: 0.6 }}>
+            {role.department} · {role.level}
+          </p>
+        </div>
+        <button
+          onClick={(e) => e.stopPropagation()}
+          className="p-1.5 rounded-md hover:bg-black/5 shrink-0"
+          aria-label="More options"
+        >
+          <MoreHorizontal className="w-4 h-4" style={{ color: "#1F2430", opacity: 0.5 }} />
+        </button>
+      </div>
+
+      {role.healthMessage && role.healthStatus !== "healthy" && (
+        <div className="mb-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900">
+          {role.healthMessage}
+        </div>
+      )}
+
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        <Stat label="New" value={role.counts.newCandidates} />
+        <Stat label="High-fit" value={role.counts.highFit} accent="#10B981" />
+        <Stat label="Intros" value={role.counts.pendingIntros} accent="#F59E0B" />
+      </div>
+
+      <div
+        className="flex items-center justify-between pt-3 border-t"
+        style={{ borderColor: "rgba(31, 36, 48, 0.08)" }}
+      >
+        <span className="text-xs flex items-center gap-1.5" style={{ color: "#1F2430", opacity: 0.6 }}>
+          <Users className="w-3.5 h-3.5" />
+          {role.counts.total} candidates
+        </span>
+        <span
+          className="text-xs flex items-center gap-1 group-hover:translate-x-0.5 transition-transform"
+          style={{ color: "#3E63F5" }}
+        >
+          Open pipeline
+          <ArrowRight className="w-3.5 h-3.5" />
+        </span>
+      </div>
+    </motion.button>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  accent = "#1F2430",
+}: {
+  label: string;
+  value: number;
+  accent?: string;
+}) {
+  return (
+    <div
+      className="rounded-lg p-2.5"
+      style={{ backgroundColor: "rgba(31, 36, 48, 0.03)" }}
+    >
+      <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "#1F2430", opacity: 0.55 }}>
+        {label}
+      </p>
+      <p className="text-lg" style={{ color: accent }}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function AddRoleCard({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="w-full text-left bg-white rounded-xl border p-5 hover:shadow-sm transition-all group"
-      style={{ borderColor: "rgba(31, 36, 48, 0.1)" }}
+      className="rounded-2xl border-2 border-dashed bg-white/40 hover:bg-white/70 transition-colors p-5 flex flex-col items-center justify-center text-center min-h-[200px]"
+      style={{ borderColor: "rgba(31, 36, 48, 0.2)" }}
     >
-      <div className="flex items-start gap-4">
-        {/* Fit score */}
-        <div className="flex flex-col items-center justify-center min-w-[56px]">
-          <div className="text-xl" style={{ color: fitColor }}>
-            {candidate.fitScore}
-          </div>
-          <div className="text-[10px] uppercase tracking-wide" style={{ color: "#1F2430", opacity: 0.5 }}>
-            fit
-          </div>
-        </div>
-
-        {/* Main */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <span style={{ color: "#1F2430" }}>
-              {candidate.hasOptedIn ? candidate.name : candidate.anonymousId}
-            </span>
-            <Badge className={`text-xs border ${getConfidenceBadgeColor(candidate.evidenceConfidence)}`}>
-              {candidate.evidenceConfidence}
-            </Badge>
-            <Badge className={`text-xs border ${getStageColor(candidate.stage)}`}>
-              {getStageName(candidate.stage)}
-            </Badge>
-          </div>
-          <p className="text-sm mb-2" style={{ color: "#1F2430", opacity: 0.75 }}>
-            <Briefcase className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />
-            {candidate.targetRole}
-          </p>
-          <p className="text-sm mb-3 line-clamp-2" style={{ color: "#1F2430", opacity: 0.7 }}>
-            {candidate.whyMatch}
-          </p>
-          <div className="flex items-center gap-3 flex-wrap text-xs" style={{ color: "#1F2430", opacity: 0.6 }}>
-            <span className="flex items-center gap-1">
-              <MapPin className="w-3 h-3" />
-              {candidate.location}
-            </span>
-            <span>·</span>
-            <span>{candidate.availability}</span>
-            <span>·</span>
-            <span className="flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              {candidate.interviewFreshness}
-            </span>
-          </div>
-        </div>
-
-        <ChevronRight
-          className="w-5 h-5 mt-1 group-hover:translate-x-0.5 transition-transform"
-          style={{ color: "#1F2430", opacity: 0.4 }}
-        />
+      <div
+        className="w-10 h-10 rounded-full flex items-center justify-center mb-2"
+        style={{ backgroundColor: "rgba(62, 99, 245, 0.1)" }}
+      >
+        <Plus className="w-5 h-5" style={{ color: "#3E63F5" }} />
       </div>
+      <p className="text-sm" style={{ color: "#1F2430" }}>Add a new role</p>
+      <p className="text-xs mt-0.5" style={{ color: "#1F2430", opacity: 0.6 }}>
+        Open a job listing and start sourcing
+      </p>
     </button>
   );
 }
 
-function CandidateDrawer({
-  candidate,
-  onClose,
-}: {
-  candidate: EmployerCandidate;
-  onClose: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-30 flex">
-      <div
-        className="flex-1 bg-black/30"
-        onClick={onClose}
-      />
-      <aside
-        className="w-full max-w-md bg-white overflow-y-auto"
-        style={{ boxShadow: "-12px 0 32px rgba(0,0,0,0.08)" }}
-      >
-        <div
-          className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between"
-          style={{ borderColor: "rgba(31, 36, 48, 0.1)" }}
-        >
-          <h2 style={{ color: "#1F2430" }}>Candidate detail</h2>
-          <button onClick={onClose} className="p-1 rounded hover:bg-black/5">
-            <X className="w-5 h-5" style={{ color: "#1F2430" }} />
-          </button>
-        </div>
-
-        <div className="p-6 space-y-6">
-          <div>
-            <div className="flex items-baseline gap-3 mb-2">
-              <span className="text-2xl" style={{ color: "#1F2430" }}>
-                {candidate.hasOptedIn ? candidate.name : candidate.anonymousId}
-              </span>
-              <span className="text-2xl" style={{ color: "#10B981" }}>
-                {candidate.fitScore}
-                <span className="text-xs ml-1" style={{ opacity: 0.6 }}>fit</span>
-              </span>
-            </div>
-            <p className="text-sm" style={{ color: "#1F2430", opacity: 0.7 }}>
-              {candidate.targetRole} · {candidate.location} · {candidate.availability}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Badge className={`text-xs border ${getConfidenceBadgeColor(candidate.evidenceConfidence)}`}>
-              {candidate.evidenceConfidence}
-            </Badge>
-            <Badge className={`text-xs border ${getStageColor(candidate.stage)}`}>
-              {getStageName(candidate.stage)}
-            </Badge>
-          </div>
-
-          <section>
-            <h3 className="text-sm mb-2" style={{ color: "#1F2430" }}>Why this match</h3>
-            <p className="text-sm" style={{ color: "#1F2430", opacity: 0.75 }}>
-              {candidate.whyMatch}
-            </p>
-          </section>
-
-          <section>
-            <h3 className="text-sm mb-2" style={{ color: "#1F2430" }}>Top strengths</h3>
-            <div className="flex flex-wrap gap-2">
-              {candidate.topTwoTags.map((tag, i) => (
-                <Badge key={`${candidate.id}-tag-${i}`} variant="secondary" className="text-xs">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-          </section>
-
-          <section>
-            <h3 className="text-sm mb-2" style={{ color: "#1F2430" }}>Evidence</h3>
-            <div className="space-y-3">
-              {candidate.evidenceItems.slice(0, 4).map((e) => (
-                <div
-                  key={e.id}
-                  className="border rounded-lg p-3"
-                  style={{ borderColor: "rgba(31, 36, 48, 0.1)" }}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm" style={{ color: "#1F2430" }}>{e.skillOrTrait}</span>
-                    <Badge className={`text-xs border ${getConfidenceBadgeColor(e.confidence)}`}>
-                      {e.signalStrength}
-                    </Badge>
-                  </div>
-                  <p className="text-xs" style={{ color: "#1F2430", opacity: 0.65 }}>
-                    {e.summary}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="border rounded-lg p-3 bg-amber-50 border-amber-200">
-            <h3 className="text-xs mb-1 text-amber-900">Needs validation</h3>
-            <p className="text-xs text-amber-800">{candidate.uncertainty}</p>
-          </section>
-
-          <div className="flex gap-2">
-            <button
-              className="flex-1 px-4 py-3 rounded-lg text-sm text-white"
-              style={{ backgroundColor: "#1F2430" }}
-            >
-              <Mail className="inline w-4 h-4 mr-2 -mt-0.5" />
-              Request intro
-            </button>
-            <button
-              className="px-4 py-3 rounded-lg text-sm border"
-              style={{ borderColor: "rgba(31, 36, 48, 0.15)", color: "#1F2430" }}
-            >
-              <Bookmark className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </aside>
-    </div>
-  );
-}
-
-function EmptyState() {
+function EmptyRoles({ onCreate }: { onCreate: () => void }) {
   return (
     <div
-      className="rounded-xl border border-dashed py-16 text-center"
-      style={{ borderColor: "rgba(31, 36, 48, 0.15)" }}
+      className="rounded-2xl border border-dashed py-16 text-center bg-white/40"
+      style={{ borderColor: "rgba(31, 36, 48, 0.2)" }}
     >
-      <Search className="w-8 h-8 mx-auto mb-3" style={{ color: "#1F2430", opacity: 0.3 }} />
-      <p className="text-sm" style={{ color: "#1F2430", opacity: 0.7 }}>
-        No candidates match this view yet.
+      <Briefcase className="w-8 h-8 mx-auto mb-3" style={{ color: "#1F2430", opacity: 0.3 }} />
+      <p className="text-sm mb-3" style={{ color: "#1F2430", opacity: 0.7 }}>
+        No roles match your view.
       </p>
-      <p className="text-xs mt-1" style={{ color: "#1F2430", opacity: 0.5 }}>
-        Try a different tab or clear your search.
-      </p>
+      <Button onClick={onCreate} className="text-white" style={{ backgroundColor: "#3E63F5" }}>
+        <Plus className="w-4 h-4 mr-1.5" />
+        Create a role
+      </Button>
     </div>
   );
 }
