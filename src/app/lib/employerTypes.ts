@@ -54,6 +54,8 @@ export interface EmployerCandidate {
   tags: string[];
   notes: string;
   hasOptedIn: boolean; // Whether candidate has accepted intro
+  introStatus?: "none" | "requested" | "accepted" | "declined";
+  rejectionReason?: string;
 }
 
 export interface Role {

@@ -19,13 +19,29 @@ import {
   DropdownMenuSeparator,
 } from "./ui/dropdown-menu";
 import { Checkbox } from "./ui/checkbox";
-import { getMockCandidates, getMockRoles } from "../lib/mockEmployerData";
-import { getMockJobListings, type JobListing } from "../lib/jobListingTypes";
+import { type JobListing } from "../lib/jobListingTypes";
 import { EditCriteriaDrawer } from "./CreateJobDrawer";
 import { getStageName, getStageColor, getConfidenceBadgeColor } from "../lib/employerTypes";
 import type { EmployerCandidate, PipelineStage } from "../lib/employerTypes";
+import { useEmployerStore } from "../lib/employerStore";
+import { CandidateEvidenceDrawer } from "./CandidateEvidenceDrawer";
+import { BulkActionBar } from "./employer/BulkActionBar";
+import { RejectionReasonModal } from "./employer/RejectionReasonModal";
+import { ConfirmModal } from "./employer/ConfirmModal";
+import { PipelineTableView } from "./employer/PipelineTableView";
 
-type ViewMode = "kanban" | "table";
+type ViewMode = "stage" | "table" | "kanban";
+
+function matchesCandidateSearch(c: EmployerCandidate, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return [
+    c.id, c.anonymousId, c.name, c.targetRole, c.location,
+    c.owner ?? "", c.stage, c.whyMatch,
+    ...c.topTwoTags, ...c.tags,
+    ...c.evidenceItems.map((e) => e.skillOrTrait),
+  ].some((v) => v.toLowerCase().includes(q));
+}
 
 const STAGES: Array<{ id: PipelineStage; label: string; color: string }> = [
   { id: "new", label: "New", color: "bg-blue-50 border-blue-200 text-blue-900" },
@@ -51,7 +67,7 @@ export function PipelineScreen() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialRole = searchParams.get("role");
-  const [viewMode, setViewMode] = useState<ViewMode>("kanban");
+  const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRole, setSelectedRole] = useState<string | null>(initialRole);
 
@@ -71,21 +87,30 @@ export function PipelineScreen() {
   const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
   const [optedInOnly, setOptedInOnly] = useState(false);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
-  const [jobListings, setJobListings] = useState<JobListing[]>(() => getMockJobListings());
+  const [savedView, setSavedView] = useState<string | null>(searchParams.get("view"));
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
+  const [rejectionTargets, setRejectionTargets] = useState<string[] | null>(null);
   const [editCriteriaJob, setEditCriteriaJob] = useState<JobListing | null>(null);
+  const [confirmRoleAction, setConfirmRoleAction] = useState<"close" | "archive" | null>(null);
+
+  const store = useEmployerStore();
+  const {
+    jobs: jobListings, candidates: allCandidates, roleStatuses,
+    updateJob, setJobStatus, updateRoleStatus,
+    patchCandidate, bulkMoveStage, bulkAssignOwner, bulkRequestIntro,
+    bulkReject, bulkAddTag,
+  } = store;
+
   const currentJobListing = useMemo(
     () => (selectedRole ? jobListings.find((j) => j.title === selectedRole) ?? null : null),
     [selectedRole, jobListings]
   );
-  const [roleStatuses, setRoleStatuses] = useState<Record<string, "active" | "paused" | "archived" | "closed">>({});
   const currentRoleStatus = selectedRole ? roleStatuses[selectedRole] ?? "active" : "active";
-  const updateRoleStatus = (status: "active" | "paused" | "archived" | "closed") => {
-    if (!selectedRole) return;
-    setRoleStatuses((prev) => ({ ...prev, [selectedRole]: status }));
-  };
 
-  const allCandidates = useMemo(() => getMockCandidates(), []);
-  const allRoles = useMemo(() => getMockRoles(), []);
+  useEffect(() => {
+    const v = searchParams.get("view");
+    if (v) setSavedView(v);
+  }, [searchParams]);
 
   const roles = useMemo(() => {
     const unique = Array.from(new Set(allCandidates.map((c) => c.targetRole)));
@@ -155,14 +180,22 @@ export function PipelineScreen() {
     if (optedInOnly) list = list.filter((c) => c.hasOptedIn);
     if (tagFilter)
       list = list.filter((c) => c.topTwoTags.includes(tagFilter));
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
+    if (searchQuery) list = list.filter((c) => matchesCandidateSearch(c, searchQuery));
+    if (savedView === "needs_review") {
       list = list.filter(
         (c) =>
-          c.name.toLowerCase().includes(q) ||
-          c.targetRole.toLowerCase().includes(q) ||
-          c.topTwoTags.some((s) => s.toLowerCase().includes(q))
+          c.stage === "new" &&
+          c.fitScore >= 80 &&
+          (c.evidenceConfidence === "Strong" || c.evidenceConfidence === "Moderate")
       );
+    } else if (savedView === "high_fit") {
+      list = list.filter((c) => c.fitScore >= 85);
+    } else if (savedView === "stale_intros") {
+      list = list.filter((c) => c.stage === "intro_requested" && c.ageInStage >= 3);
+    } else if (savedView === "unassigned") {
+      list = list.filter((c) => !c.owner);
+    } else if (savedView === "overdue") {
+      list = list.filter((c) => c.slaStatus === "overdue");
     }
     return list;
   }, [
@@ -177,6 +210,7 @@ export function PipelineScreen() {
     optedInOnly,
     tagFilter,
     searchQuery,
+    savedView,
   ]);
 
   const healthNudges = useMemo<HealthNudge[]>(() => {
@@ -232,10 +266,80 @@ export function PipelineScreen() {
     );
   };
 
-  const handleBulkAction = (action: string) => {
-    console.log(`Bulk action: ${action} on`, selectedIds);
-    setBulkMenuOpen(false);
+  const handleBulkMoveStage = (stage: PipelineStage) => {
+    bulkMoveStage(selectedIds, stage);
     setSelectedIds([]);
+  };
+  const handleBulkAssign = (owner: string) => {
+    bulkAssignOwner(selectedIds, owner);
+    setSelectedIds([]);
+  };
+  const handleBulkIntro = () => {
+    bulkRequestIntro(selectedIds);
+    setSelectedIds([]);
+  };
+  const handleBulkPass = () => {
+    setRejectionTargets(selectedIds);
+  };
+  const handleBulkTag = (tag: string) => {
+    bulkAddTag(selectedIds, tag);
+  };
+  const confirmRejection = (reason: string, note?: string) => {
+    if (!rejectionTargets) return;
+    bulkReject(rejectionTargets, reason, note);
+    setRejectionTargets(null);
+    setSelectedIds([]);
+    setSelectedCandidateId(null);
+  };
+
+  const selectedCandidate = useMemo(
+    () => allCandidates.find((c) => c.id === selectedCandidateId) ?? null,
+    [allCandidates, selectedCandidateId]
+  );
+
+  const handleSingleMove = (stage: PipelineStage) => {
+    if (!selectedCandidate) return;
+    bulkMoveStage([selectedCandidate.id], stage);
+  };
+  const handleSingleAssign = (owner: string) => {
+    if (!selectedCandidate) return;
+    bulkAssignOwner([selectedCandidate.id], owner);
+  };
+  const handleSingleIntro = () => {
+    if (!selectedCandidate) return;
+    bulkRequestIntro([selectedCandidate.id]);
+  };
+  const handleSinglePass = () => {
+    if (!selectedCandidate) return;
+    setRejectionTargets([selectedCandidate.id]);
+  };
+  const handleSingleNote = (note: string) => {
+    if (!selectedCandidate) return;
+    patchCandidate(selectedCandidate.id, { notes: note });
+  };
+
+  const ownerNudgeAction = (id: string) => {
+    if (id === "strong-waiting") setSavedView("needs_review");
+    else if (id === "intro-stale") setSavedView("stale_intros");
+    else if (id === "low-fit" && currentJobListing) setEditCriteriaJob(currentJobListing);
+  };
+
+  const updateRoleStatusLocal = (status: "active" | "paused" | "archived" | "closed") => {
+    if (!selectedRole) return;
+    if (status === "closed" || status === "archived") {
+      setConfirmRoleAction(status);
+      return;
+    }
+    updateRoleStatus(selectedRole, status);
+    if (currentJobListing) {
+      setJobStatus(currentJobListing.id, status);
+    }
+  };
+  const confirmRoleStatus = () => {
+    if (!selectedRole || !confirmRoleAction) return;
+    updateRoleStatus(selectedRole, confirmRoleAction);
+    if (currentJobListing) setJobStatus(currentJobListing.id, confirmRoleAction);
+    setConfirmRoleAction(null);
   };
 
   return (
@@ -303,7 +407,7 @@ export function PipelineScreen() {
                       variant="outline"
                       size="sm"
                       className="h-9 px-3"
-                      onClick={() => updateRoleStatus("active")}
+                      onClick={() => updateRoleStatusLocal("active")}
                       aria-label="Resume role"
                     >
                       <Play className="w-4 h-4 sm:mr-1.5" />
@@ -314,7 +418,7 @@ export function PipelineScreen() {
                       variant="outline"
                       size="sm"
                       className="h-9 px-3"
-                      onClick={() => updateRoleStatus("paused")}
+                      onClick={() => updateRoleStatusLocal("paused")}
                       disabled={currentRoleStatus !== "active"}
                       aria-label="Pause role"
                     >
@@ -326,7 +430,7 @@ export function PipelineScreen() {
                     variant="outline"
                     size="sm"
                     className="h-9 px-3"
-                    onClick={() => updateRoleStatus("closed")}
+                    onClick={() => updateRoleStatusLocal("closed")}
                     disabled={currentRoleStatus === "closed" || currentRoleStatus === "archived"}
                     aria-label="Close role"
                   >
@@ -337,7 +441,7 @@ export function PipelineScreen() {
                     variant="outline"
                     size="sm"
                     className="h-9 px-3"
-                    onClick={() => updateRoleStatus("archived")}
+                    onClick={() => updateRoleStatusLocal("archived")}
                     disabled={currentRoleStatus === "archived"}
                     aria-label="Archive role"
                   >
@@ -347,6 +451,33 @@ export function PipelineScreen() {
                   <span className="w-px h-6 bg-black/10 mx-1" />
                 </>
               )}
+              <div
+                className="hidden sm:inline-flex rounded-lg border overflow-hidden h-9"
+                style={{ borderColor: "rgba(31,36,48,0.15)" }}
+              >
+                {([
+                  { id: "table", icon: List, label: "Table" },
+                  { id: "stage", icon: LayoutGrid, label: "Stage" },
+                ] as const).map((v) => {
+                  const Icon = v.icon;
+                  const active = viewMode === v.id;
+                  return (
+                    <button
+                      key={v.id}
+                      onClick={() => setViewMode(v.id)}
+                      className="px-3 flex items-center gap-1.5 text-xs"
+                      style={{
+                        backgroundColor: active ? "#1F2430" : "transparent",
+                        color: active ? "white" : "#1F2430",
+                      }}
+                      aria-label={v.label}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      {v.label}
+                    </button>
+                  );
+                })}
+              </div>
               <Button
                 variant={showFilters ? "default" : "outline"}
                 size="sm"
@@ -567,6 +698,7 @@ export function PipelineScreen() {
                 <Button
                   size="sm"
                   variant="ghost"
+                  onClick={() => ownerNudgeAction(nudge.id)}
                   className={`shrink-0 h-8 ${
                     nudge.type === "warning"
                       ? "text-amber-700 hover:bg-amber-100"
@@ -584,74 +716,81 @@ export function PipelineScreen() {
         </div>
       )}
 
-      {selectedIds.length > 0 && (
-        <div className="px-3 sm:px-6 py-3">
-          <div className="flex items-center justify-between gap-3 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
-            <p className="text-sm text-indigo-900">
-              {selectedIds.length} selected
-            </p>
-            <div className="flex items-center gap-2">
-              <DropdownMenu open={bulkMenuOpen} onOpenChange={setBulkMenuOpen}>
-                <DropdownMenuTrigger asChild>
-                  <Button size="sm" variant="default" className="h-9">
-                    Bulk actions
-                    <ChevronDown className="w-4 h-4 ml-1.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem onClick={() => handleBulkAction("assign")}>
-                    <Users className="w-4 h-4 mr-2" />
-                    Assign reviewer
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleBulkAction("intro")}>
-                    <Mail className="w-4 h-4 mr-2" />
-                    Request intro
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleBulkAction("move")}>
-                    <ArrowRight className="w-4 h-4 mr-2" />
-                    Move stage
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => handleBulkAction("pass")}
-                    className="text-destructive"
-                  >
-                    <ThumbsDown className="w-4 h-4 mr-2" />
-                    Pass
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setSelectedIds([])}
-                className="h-9"
-              >
-                Clear
-              </Button>
-            </div>
+      <div className="px-0 sm:px-0 pb-24 font-[Inter,sans-serif]">
+        {viewMode === "table" ? (
+          <div className="px-3 sm:px-6 py-3">
+            <PipelineTableView
+              candidates={filteredCandidates}
+              selectedIds={selectedIds}
+              onToggle={handleSelectCandidate}
+              onToggleAll={handleSelectAll}
+              onOpen={(c) => setSelectedCandidateId(c.id)}
+            />
           </div>
-        </div>
+        ) : (
+          <StageAccordion
+            candidates={filteredCandidates}
+            selectedIds={selectedIds}
+            onSelectCandidate={handleSelectCandidate}
+            viewMode={viewMode}
+            onSelectAll={handleSelectAll}
+            onOpenCandidate={(id) => setSelectedCandidateId(id)}
+          />
+        )}
+      </div>
+
+      <BulkActionBar
+        count={selectedIds.length}
+        ownerOptions={ownerOptions}
+        onMoveStage={handleBulkMoveStage}
+        onAssign={handleBulkAssign}
+        onRequestIntro={handleBulkIntro}
+        onPass={handleBulkPass}
+        onAddTag={handleBulkTag}
+        onClear={() => setSelectedIds([])}
+      />
+
+      {selectedCandidate && (
+        <CandidateEvidenceDrawer
+          candidate={selectedCandidate}
+          ownerOptions={ownerOptions}
+          onClose={() => setSelectedCandidateId(null)}
+          onMoveStage={handleSingleMove}
+          onAssign={handleSingleAssign}
+          onRequestIntro={handleSingleIntro}
+          onPass={handleSinglePass}
+          onCompare={() => setSelectedCandidateId(null)}
+          onSaveNote={handleSingleNote}
+        />
       )}
 
-      <div className="px-0 sm:px-0 pb-0 font-[Inter,sans-serif]">
-        <StageAccordion
-          candidates={filteredCandidates}
-          selectedIds={selectedIds}
-          onSelectCandidate={handleSelectCandidate}
-          viewMode={viewMode}
-          onSelectAll={handleSelectAll}
-        />
-      </div>
+      <RejectionReasonModal
+        open={!!rejectionTargets}
+        count={rejectionTargets?.length ?? 0}
+        onCancel={() => setRejectionTargets(null)}
+        onConfirm={confirmRejection}
+      />
+
+      <ConfirmModal
+        open={!!confirmRoleAction}
+        title={confirmRoleAction === "archive" ? "Archive role?" : "Close role?"}
+        description={
+          confirmRoleAction === "archive"
+            ? "Archived roles are removed from the active dashboard. You can restore them later."
+            : "Closing this role stops new matches and pauses outreach. Hired candidates remain in the pipeline."
+        }
+        confirmLabel={confirmRoleAction === "archive" ? "Archive role" : "Close role"}
+        destructive
+        onCancel={() => setConfirmRoleAction(null)}
+        onConfirm={confirmRoleStatus}
+      />
 
       {editCriteriaJob && (
         <EditCriteriaDrawer
           existing={editCriteriaJob}
           onCancel={() => setEditCriteriaJob(null)}
           onSubmit={(updated) => {
-            setJobListings((prev) =>
-              prev.map((j) => (j.id === updated.id ? updated : j))
-            );
+            updateJob(updated);
             setEditCriteriaJob(null);
           }}
         />
@@ -672,6 +811,7 @@ interface StageAccordionProps {
   onSelectCandidate: (id: string, checked: boolean) => void;
   onSelectAll: (checked: boolean) => void;
   viewMode: ViewMode;
+  onOpenCandidate: (id: string) => void;
 }
 
 function FilterSelect({
@@ -712,7 +852,7 @@ function FilterSelect({
   );
 }
 
-function StageAccordion({ candidates, selectedIds, onSelectCandidate }: StageAccordionProps) {
+function StageAccordion({ candidates, selectedIds, onSelectCandidate, onOpenCandidate }: StageAccordionProps) {
   const [activeStage, setActiveStage] = useState<PipelineStage>("new");
 
   const stagesWithCounts = STAGES.map((s) => ({
@@ -818,15 +958,18 @@ function StageAccordion({ candidates, selectedIds, onSelectCandidate }: StageAcc
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.18 }}
-                    className="flex items-start gap-3 px-5 py-4 hover:bg-[#F3F2F0]/40 transition-colors"
+                    onClick={() => onOpenCandidate(candidate.id)}
+                    className="flex items-start gap-3 px-5 py-4 hover:bg-[#F3F2F0]/40 transition-colors cursor-pointer"
                   >
-                    <Checkbox
-                      checked={checked}
-                      onCheckedChange={(v) =>
-                        onSelectCandidate(candidate.id, Boolean(v))
-                      }
-                      className="mt-1"
-                    />
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(v) =>
+                          onSelectCandidate(candidate.id, Boolean(v))
+                        }
+                        className="mt-1"
+                      />
+                    </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <span style={{ color: "#1F2430" }}>

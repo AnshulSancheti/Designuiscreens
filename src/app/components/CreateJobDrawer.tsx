@@ -176,7 +176,9 @@ export function CreateJobForm({
   const activeSteps = (steps ?? STEPS) as readonly StepId[];
   const [draft, setDraft] = useState<DraftState>(() => freshDraft(existing));
   const [stepIdx, setStepIdx] = useState(0);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const step: StepId = activeSteps[stepIdx];
+  const isCriteriaOnly = !!steps;
 
   const set = <K extends keyof DraftState>(key: K, value: DraftState[K]) =>
     setDraft((d) => ({ ...d, [key]: value }));
@@ -301,6 +303,22 @@ export function CreateJobForm({
           {step === "Publish" && <PublishStep draft={draft} calibration={calibration} />}
         </div>
 
+        {validationErrors.length > 0 && (
+          <div
+            className="px-6 py-3 border-t bg-red-50"
+            style={{ borderColor: "rgba(239,68,68,0.25)" }}
+          >
+            <p className="text-xs mb-1.5" style={{ color: "#B91C1C" }}>
+              Fix these before publishing:
+            </p>
+            <ul className="text-xs space-y-0.5" style={{ color: "#B91C1C" }}>
+              {validationErrors.map((e) => (
+                <li key={e}>· {e}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* Footer */}
         <div
           className="px-6 py-4 border-t flex items-center justify-between gap-2"
@@ -315,7 +333,13 @@ export function CreateJobForm({
           </Button>
           <div className="flex gap-2">
             {showSaveDraft && (
-              <Button variant="outline" onClick={() => onSubmit(buildJob("draft"))}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setValidationErrors([]);
+                  onSubmit(buildJob("draft"));
+                }}
+              >
                 <Save className="w-4 h-4 mr-1.5" /> Save draft
               </Button>
             )}
@@ -329,7 +353,19 @@ export function CreateJobForm({
               </Button>
             ) : (
               <Button
-                onClick={() => onSubmit(buildJob(existing?.status ?? "active"))}
+                onClick={() => {
+                  if (isCriteriaOnly) {
+                    onSubmit(buildJob(existing?.status ?? "active"));
+                    return;
+                  }
+                  const errs = validateJobForPublish(draft);
+                  if (errs.length > 0) {
+                    setValidationErrors(errs);
+                    return;
+                  }
+                  setValidationErrors([]);
+                  onSubmit(buildJob(existing?.status ?? "active"));
+                }}
                 className="text-white"
                 style={{ backgroundColor: "#3E63F5" }}
               >
@@ -904,6 +940,28 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 /* ============== Helpers ============== */
+function validateJobForPublish(d: DraftState): string[] {
+  const errors: string[] = [];
+  if (!d.title.trim()) errors.push("Job title is required.");
+  if (!d.department.trim()) errors.push("Department is required.");
+  if (!d.team.trim()) errors.push("Team is required.");
+  if (!d.recruiterOwner.trim()) errors.push("Recruiter owner is required.");
+  if (!d.hiringManager.trim()) errors.push("Hiring manager is required.");
+  if (!d.city.trim() && d.workMode !== "remote") errors.push("City is required (or set work mode to remote).");
+  if (!d.publicJobDescription.trim()) errors.push("Public job description is required.");
+  if (!d.responsibilities.trim()) errors.push("Responsibilities are required.");
+  if (!d.requiredQualifications.trim()) errors.push("Required qualifications are required.");
+  if (d.matching.requiredSkills.length < 2) errors.push("Add at least 2 required skills.");
+  if (d.matching.mustHaveTraits.length < 1) errors.push("Add at least 1 must-have trait.");
+  if (d.salaryPublic && (!d.salaryMin || !d.salaryMax)) {
+    errors.push("Set a salary range, or mark compensation as not public.");
+  }
+  if (!d.pipelineStages || d.pipelineStages.length === 0) {
+    errors.push("Pipeline stages are required.");
+  }
+  return errors;
+}
+
 function splitLines(s: string): string[] {
   return s.split("\n").map((l) => l.trim()).filter(Boolean);
 }

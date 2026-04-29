@@ -1,15 +1,22 @@
-import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router";
 import { ArrowLeft } from "lucide-react";
 import { CreateJobForm } from "./CreateJobDrawer";
-import { getMockJobListings, type JobListing } from "../lib/jobListingTypes";
+import { useEmployerStore } from "../lib/employerStore";
 
 export function EmployerJobListings() {
   const navigate = useNavigate();
-  const [jobs, setJobs] = useState<JobListing[]>(() => getMockJobListings());
+  const [searchParams] = useSearchParams();
+  const { jobs, updateJob } = useEmployerStore();
 
-  const handleSubmit = (job: JobListing) => {
-    setJobs((prev) => [job, ...prev.filter((j) => j.id !== job.id)]);
+  const editId = searchParams.get("edit");
+  const existing = useMemo(
+    () => (editId ? jobs.find((j) => j.id === editId) ?? null : null),
+    [editId, jobs]
+  );
+
+  const handleSubmit = (job: any) => {
+    updateJob(job);
     navigate("/employer");
   };
 
@@ -32,7 +39,7 @@ export function EmployerJobListings() {
           <ArrowLeft className="w-4 h-4" /> Back to dashboard
         </button>
         <span className="text-xs" style={{ color: "#1F2430", opacity: 0.55 }}>
-          New job listing
+          {existing ? `Edit · ${existing.title}` : "New job listing"}
         </span>
       </div>
 
@@ -42,7 +49,7 @@ export function EmployerJobListings() {
           style={{ borderColor: "rgba(31,36,48,0.08)", minHeight: "calc(100vh - 140px)" }}
         >
           <CreateJobForm
-            existing={null}
+            existing={existing}
             onCancel={handleCancel}
             onSubmit={handleSubmit}
             cancelLabel="Back to dashboard"

@@ -24,6 +24,7 @@ import { PipelineScreen } from "./components/PipelineScreen";
 import { MobileEmployerDashboard } from "./components/MobileEmployerDashboard";
 import { EmployerDataDemo } from "./components/EmployerDataDemo";
 import { EmployerJobListings } from "./components/EmployerJobListings";
+import { EmployerLayout } from "./components/EmployerLayout";
 
 export const router = createBrowserRouter([
   {
@@ -40,23 +41,14 @@ export const router = createBrowserRouter([
   },
   {
     path: "/employer",
-    Component: EmployerDashboard,
-  },
-  {
-    path: "/employer/pipeline",
-    Component: PipelineScreen,
-  },
-  {
-    path: "/employer/jobs",
-    Component: EmployerJobListings,
-  },
-  {
-    path: "/employer/mobile",
-    Component: MobileEmployerDashboard,
-  },
-  {
-    path: "/employer/demo-data",
-    Component: EmployerDataDemo,
+    Component: EmployerLayout,
+    children: [
+      { index: true, Component: EmployerDashboard },
+      { path: "pipeline", Component: PipelineScreen },
+      { path: "jobs", Component: EmployerJobListings },
+      { path: "mobile", Component: MobileEmployerDashboard },
+      { path: "demo-data", Component: EmployerDataDemo },
+    ],
   },
   {
     path: "/candidate",
