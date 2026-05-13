@@ -30,6 +30,7 @@ const LANDING_ONLY = import.meta.env.VITE_LANDING_ONLY !== "false";
 
 const publicRoutes = [
   { path: "/", Component: LandingPage },
+  { path: "/about", Component: AboutPage },
   { path: "/contact", Component: ContactPage },
   { path: "/terms", Component: TermsPage },
   { path: "/privacy", Component: PrivacyPage },
